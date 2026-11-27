@@ -38,3 +38,27 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+@keyframes lazer-nabiz {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgb(224 49 49 / 0.25),
+      0 0 18px 4px rgb(255 80 80 / 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgb(224 49 49 / 0.15),
+      0 0 32px 10px rgb(255 80 80 / 0.75);
+  }
+}
+
+.lazer-halkasi {
+  animation: lazer-nabiz 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lazer-halkasi {
+    animation: none;
+  }
+}

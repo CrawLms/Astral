@@ -1,4 +1,8 @@
-const ONEK = "astral:";
+"use client";
+
+import { createStore, del, get, set, type UseStore } from "idb-keyval";
+
+const ESKI_ONEK = "astral:";
 
 export const ANAHTARLAR = {
   uniteler: "uniteler",
@@ -7,29 +11,61 @@ export const ANAHTARLAR = {
   kitapAdi: "kitap-adi",
   model: "model",
   ses: "ses",
+  hiz: "hiz",
+  mod: "ogretmen-modu",
+  ders: "ders",
+  tahta: "tahta",
 } as const;
 
-export function oku<T>(anahtar: string, varsayilan: T): T {
-  if (typeof window === "undefined") return varsayilan;
+let depo: UseStore | null = null;
+function depoAl() {
+  depo ??= createStore("astral", "ders-verileri");
+  return depo;
+}
+
+const tarayicida = () => typeof window !== "undefined" && "indexedDB" in window;
+
+function eskiyiAl(anahtar: string): unknown {
   try {
-    const ham = window.localStorage.getItem(ONEK + anahtar);
-    return ham === null ? varsayilan : (JSON.parse(ham) as T);
+    const ham = window.localStorage.getItem(ESKI_ONEK + anahtar);
+    if (ham === null) return undefined;
+    window.localStorage.removeItem(ESKI_ONEK + anahtar);
+    return JSON.parse(ham);
   } catch {
-    return varsayilan;
+    return undefined;
   }
 }
 
-export function yaz(anahtar: string, deger: unknown): boolean {
-  if (typeof window === "undefined") return false;
+export async function oku<T>(anahtar: string, varsayilan: T): Promise<T> {
+  if (!tarayicida()) return varsayilan;
   try {
-    window.localStorage.setItem(ONEK + anahtar, JSON.stringify(deger));
+    const deger = await get<T>(anahtar, depoAl());
+    if (deger !== undefined) return deger;
+    const eski = eskiyiAl(anahtar);
+    if (eski !== undefined) {
+      await set(anahtar, eski, depoAl());
+      return eski as T;
+    }
+  } catch (hata) {
+    console.error("[depolama] okunamadı", anahtar, hata);
+  }
+  return varsayilan;
+}
+
+export async function yaz(anahtar: string, deger: unknown): Promise<boolean> {
+  if (!tarayicida()) return false;
+  try {
+    await set(anahtar, deger, depoAl());
     return true;
-  } catch {
+  } catch (hata) {
+    console.error("[depolama] yazılamadı", anahtar, hata);
     return false;
   }
 }
 
-export function sil(anahtar: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(ONEK + anahtar);
+export async function sil(anahtar: string) {
+  if (!tarayicida()) return;
+  try {
+    await del(anahtar, depoAl());
+  } catch {}
 }

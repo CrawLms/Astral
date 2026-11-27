@@ -1,7 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCheck, GraduationCap, HelpCircle, Loader2, Send, TriangleAlert, X } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  CheckCheck,
+  ClipboardList,
+  GraduationCap,
+  HelpCircle,
+  ImagePlus,
+  Loader2,
+  Send,
+  TriangleAlert,
+  X,
+} from "lucide-react";
+import { dosyadanGorsel, type HazirGorsel } from "@/lib/gorsel-donustur";
+
+const SEMBOLLER = ["√", "π", "∑", "∫", "Δ", "θ", "²", "³", "→", "≠", "≤", "≥"];
 
 export type OgretmenMesaji = { baslik: string; metin: string; tur: "anlatim" | "cevap" | "bilgi" };
 
@@ -14,9 +27,12 @@ type Props = {
   hata: string | null;
   onHataKapat: () => void;
   gonderiliyor: boolean;
-  onGonder: (metin: string) => Promise<boolean>;
+  onGonder: (metin: string, fotograf: HazirGorsel | null) => Promise<boolean>;
   tamamlaGorunur: boolean;
   onTamamla: () => void;
+  testGorunur: boolean;
+  testYukleniyor: boolean;
+  onTestOlustur: () => void;
 };
 
 export function AltPanel({
@@ -31,13 +47,46 @@ export function AltPanel({
   onGonder,
   tamamlaGorunur,
   onTamamla,
+  testGorunur,
+  testYukleniyor,
+  onTestOlustur,
 }: Props) {
   const [metin, setMetin] = useState("");
+  const [fotograf, setFotograf] = useState<HazirGorsel | null>(null);
+  const [fotoHata, setFotoHata] = useState<string | null>(null);
+  const metinRef = useRef<HTMLTextAreaElement>(null);
+  const dosyaRef = useRef<HTMLInputElement>(null);
 
   async function gonder() {
     if (gonderiliyor) return;
-    const tamam = await onGonder(metin.trim());
-    if (tamam) setMetin("");
+    const tamam = await onGonder(metin.trim(), fotograf);
+    if (tamam) {
+      setMetin("");
+      setFotograf(null);
+    }
+  }
+
+  async function fotografAl(dosya: File | null | undefined) {
+    if (!dosya) return;
+    setFotoHata(null);
+    try {
+      const g = await dosyadanGorsel(dosya);
+      if (!g) setFotoHata("Lütfen bir görsel dosyası seçin.");
+      else setFotograf(g);
+    } catch {
+      setFotoHata("Fotoğraf okunamadı.");
+    }
+  }
+
+  function sembolEkle(sembol: string) {
+    const alan = metinRef.current;
+    const bas = alan?.selectionStart ?? metin.length;
+    const son = alan?.selectionEnd ?? metin.length;
+    setMetin(metin.slice(0, bas) + sembol + metin.slice(son));
+    requestAnimationFrame(() => {
+      alan?.focus();
+      alan?.setSelectionRange(bas + sembol.length, bas + sembol.length);
+    });
   }
 
   return (
@@ -114,13 +163,76 @@ export function AltPanel({
           gonder();
         }}
       >
+        <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Matematik ve fen sembolleri">
+          {SEMBOLLER.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => sembolEkle(s)}
+              aria-label={`${s} sembolünü ekle`}
+              className="flex h-7 min-w-7 items-center justify-center rounded border border-border bg-muted/60 px-1.5 font-mono text-sm hover:border-primary/40 hover:bg-primary/5"
+            >
+              {s}
+            </button>
+          ))}
+          <input
+            ref={dosyaRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            tabIndex={-1}
+            onChange={(e) => {
+              const d = e.target.files?.[0];
+              e.target.value = "";
+              fotografAl(d);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => dosyaRef.current?.click()}
+            className="ml-auto flex h-7 items-center gap-1.5 rounded border border-border px-2 text-xs font-medium hover:bg-muted"
+          >
+            <ImagePlus className="size-3.5" aria-hidden />
+            Soru fotoğrafı
+          </button>
+        </div>
+        {(fotograf || fotoHata) && (
+          <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 p-1.5 text-xs">
+            {fotograf ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={fotograf.dataURL} alt="Yüklenen soru fotoğrafı önizlemesi" className="h-10 w-14 rounded object-cover" />
+                <span className="flex-1 text-muted-foreground">Fotoğraf tahtanın soluna yerleşip yanında adım adım çözülecek.</span>
+                <button
+                  type="button"
+                  onClick={() => setFotograf(null)}
+                  aria-label="Fotoğrafı kaldır"
+                  className="rounded p-1 hover:bg-muted"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </>
+            ) : (
+              <span role="alert" className="text-destructive">
+                {fotoHata}
+              </span>
+            )}
+          </div>
+        )}
         <label htmlFor="ogrenci-soru" className="sr-only">
           Sorunuz veya cevabınız
         </label>
         <textarea
           id="ogrenci-soru"
+          ref={metinRef}
           value={metin}
           onChange={(e) => setMetin(e.target.value)}
+          onPaste={(e) => {
+            const dosya = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
+            if (!dosya) return;
+            e.preventDefault();
+            fotografAl(dosya);
+          }}
           onKeyDown={(e) => {
             if (e.key !== "Enter" || e.shiftKey) return;
             if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -128,8 +240,12 @@ export function AltPanel({
             gonder();
           }}
           rows={3}
-          placeholder={soruBekliyor ? "Cevabınızı yazın…" : "Anlamadığın yeri sor ya da tahtada işaretleyip açıkla…"}
-          className="min-h-20 flex-1 resize-none rounded-md border border-border bg-background p-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          placeholder={
+            soruBekliyor
+              ? "Cevabınızı yazın…"
+              : "Anlamadığın yeri sor, tahtada işaretle ya da soru fotoğrafını yapıştır (Ctrl+V)…"
+          }
+          className="min-h-16 flex-1 resize-none rounded-md border border-border bg-background p-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
         />
         <div className="flex flex-wrap gap-2">
           <button
@@ -148,6 +264,21 @@ export function AltPanel({
             >
               <CheckCheck className="size-4" aria-hidden />
               Üniteyi Tamamla &amp; Sonrakine Geç
+            </button>
+          )}
+          {testGorunur && (
+            <button
+              type="button"
+              onClick={onTestOlustur}
+              disabled={testYukleniyor}
+              className="flex basis-full items-center justify-center gap-2 rounded-md border border-accent bg-accent/25 px-3 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/40 disabled:opacity-60"
+            >
+              {testYukleniyor ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <ClipboardList className="size-4" aria-hidden />
+              )}
+              3 Soruluk Mini Test Oluştur
             </button>
           )}
         </div>
