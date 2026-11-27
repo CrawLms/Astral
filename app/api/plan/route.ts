@@ -1,5 +1,4 @@
-import { generateText } from "ai";
-import { hataYaniti, jsonCikar, modelSec } from "@/lib/ai-yardimci";
+import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
 import type { Unite } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -50,11 +49,13 @@ async function parcayiPlanla(model: string, parca: GelenSayfa[], sira: number, t
   const ilk = parca[0].sayfaNo;
   const son = parca[parca.length - 1].sayfaNo;
   const icerik = parca.map((s) => `[Sayfa ${s.sayfaNo}] ${s.ozet}`).join("\n");
-  const { text } = await generateText({
-    model,
-    instructions: TALIMAT,
-    prompt: `Bu, kitabın ${toplam} parçasından ${sira + 1}. parçasıdır (sayfa ${ilk}-${son}). Yalnızca bu sayfa aralığındaki üniteleri çıkar.\n\n${icerik}`,
-  });
+  const text = await sohbetTamamla(model, [
+    { role: "system", content: TALIMAT },
+    {
+      role: "user",
+      content: `Bu, kitabın ${toplam} parçasından ${sira + 1}. parçasıdır (sayfa ${ilk}-${son}). Yalnızca bu sayfa aralığındaki üniteleri çıkar.\n\n${icerik}`,
+    },
+  ]);
   const veri = jsonCikar<{ uniteler?: HamUnite[] }>(text);
   return (veri.uniteler ?? []).filter(
     (u) => u.baslik && Number.isFinite(u.sayfaBaslangic) && Number.isFinite(u.sayfaBitis),

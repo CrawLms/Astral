@@ -18,7 +18,7 @@ const BeyazTahta = dynamic(() => import("./beyaz-tahta"), {
   ),
 });
 
-const VARSAYILAN_MODEL = "google/gemini-3-flash";
+const VARSAYILAN_MODEL = "gpt-6.1-sol";
 
 type Konu = { baslik: string; uniteId: string | null };
 
@@ -29,7 +29,12 @@ export default function DersUygulamasi() {
   const [aktifUniteId, setAktifUniteId] = useState<string | null>(() => oku(ANAHTARLAR.aktifUnite, null));
   const [sayfalar, setSayfalar] = useState<SayfaMetni[]>(() => oku(ANAHTARLAR.sayfalar, []));
   const [kitapAdi, setKitapAdi] = useState<string | null>(() => oku(ANAHTARLAR.kitapAdi, null));
-  const [model, setModel] = useState<string>(() => oku(ANAHTARLAR.model, VARSAYILAN_MODEL));
+  const [model, setModel] = useState<string>(() => {
+    const kayitli = oku<string>(ANAHTARLAR.model, VARSAYILAN_MODEL);
+    return kayitli.startsWith("google/") || kayitli.startsWith("openai/") || kayitli.startsWith("anthropic/")
+      ? VARSAYILAN_MODEL
+      : kayitli;
+  });
   const [sesAcik, setSesAcik] = useState<boolean>(() => oku(ANAHTARLAR.ses, true));
 
   const [konu, setKonu] = useState<Konu | null>(null);

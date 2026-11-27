@@ -7,6 +7,7 @@ import {
   PanelLeftOpen,
   Pause,
   Play,
+  RefreshCw,
   SkipBack,
   SkipForward,
   Volume2,
@@ -32,11 +33,12 @@ type Props = {
 };
 
 const HAZIR_MODELLER = [
-  "google/gemini-3-flash",
-  "google/gemini-3.5-flash",
-  "google/gemini-3.1-pro-preview",
-  "openai/gpt-5-mini",
-  "anthropic/claude-sonnet-4.5",
+  "gpt-6.1-sol",
+  "gpt-6-astra",
+  "gpt-6-sol",
+  "gpt-5.6-sol",
+  "gpt-6-luna",
+  "gemini-3.8-flash",
 ];
 
 function AracButonu({
@@ -72,7 +74,30 @@ function AracButonu({
 
 export function UstCubuk(p: Props) {
   const [modelTaslak, setModelTaslak] = useState(p.model);
+  const [canliModeller, setCanliModeller] = useState<string[]>([]);
+  const [yenileniyor, setYenileniyor] = useState(false);
+  const [modelDurumu, setModelDurumu] = useState<string | null>(null);
   const sahneVar = p.sahneSayisi > 0;
+  const modelSecenekleri = [...new Set([...HAZIR_MODELLER, ...canliModeller])];
+
+  async function modelleriYenile() {
+    setYenileniyor(true);
+    setModelDurumu(null);
+    try {
+      const yanit = await fetch("/api/models", { cache: "no-store" });
+      const veri = await yanit.json().catch(() => ({}));
+      if (!yanit.ok) throw new Error(veri.hata ?? `HTTP ${yanit.status}`);
+      const liste: string[] = Array.isArray(veri.modeller) ? veri.modeller : [];
+      setCanliModeller(liste);
+      setModelDurumu(`${liste.length} model bulundu`);
+    } catch (hata) {
+      const mesaj = hata instanceof Error ? hata.message : String(hata);
+      setModelDurumu("Liste alınamadı");
+      window.alert(`Modeller yenilenemedi: ${mesaj}`);
+    } finally {
+      setYenileniyor(false);
+    }
+  }
 
   return (
     <header className="flex flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2">
@@ -142,13 +167,26 @@ export function UstCubuk(p: Props) {
           onBlur={() => modelTaslak.trim() && p.onModel(modelTaslak.trim())}
           spellCheck={false}
           className="w-44 bg-transparent font-mono text-xs outline-none"
-          placeholder="saglayici/model"
+          placeholder="model-id"
         />
         <datalist id="hazir-modeller">
-          {HAZIR_MODELLER.map((m) => (
+          {modelSecenekleri.map((m) => (
             <option key={m} value={m} />
           ))}
         </datalist>
+        <button
+          type="button"
+          onClick={modelleriYenile}
+          disabled={yenileniyor}
+          aria-label="Modelleri Yenile"
+          title={modelDurumu ?? "Modelleri Yenile"}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw className={`size-3.5 ${yenileniyor ? "animate-spin" : ""}`} />
+        </button>
+        <span className="sr-only" role="status">
+          {modelDurumu}
+        </span>
         <button
           type="submit"
           className="rounded-md bg-muted px-2 py-1 text-xs font-medium hover:bg-border"
