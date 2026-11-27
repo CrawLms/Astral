@@ -1,5 +1,4 @@
-import { generateText } from "ai";
-import { hataYaniti, jsonCikar, modelSec } from "@/lib/ai-yardimci";
+import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
 import type { Sahne, TahtaElemani } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -85,11 +84,13 @@ export async function POST(req: Request) {
         return Response.json({ hata: "Anlatılacak metin boş." }, { status: 400 });
       }
       const altKonular = govde.altKonular?.length ? `\nAlt konular: ${govde.altKonular.join(", ")}` : "";
-      const { text } = await generateText({
-        model,
-        instructions: ANLAT_TALIMATI,
-        prompt: `Ünite: ${govde.baslik ?? "Konu"}${altKonular}\n\n--- ÜNİTE METNİ (TAM) ---\n${metin}`,
-      });
+      const text = await sohbetTamamla(model, [
+        { role: "system", content: ANLAT_TALIMATI },
+        {
+          role: "user",
+          content: `Ünite: ${govde.baslik ?? "Konu"}${altKonular}\n\n--- ÜNİTE METNİ (TAM) ---\n${metin}`,
+        },
+      ]);
       const sahneler = sahneleriTemizle(jsonCikar<{ sahneler?: unknown }>(text).sahneler);
       if (sahneler.length === 0) {
         return Response.json(
@@ -115,21 +116,18 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join("\n");
 
-      const { text } = await generateText({
-        model,
-        instructions: SORU_TALIMATI,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: baglam },
-              ...(gorsel
-                ? [{ type: "file" as const, mediaType: "image/png", data: gorsel }]
-                : []),
-            ],
-          },
-        ],
-      });
+      const text = await sohbetTamamla(model, [
+        { role: "system", content: SORU_TALIMATI },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: baglam },
+            ...(gorsel
+              ? [{ type: "image_url" as const, image_url: { url: `data:image/png;base64,${gorsel}` } }]
+              : []),
+          ],
+        },
+      ]);
       const veri = jsonCikar<{ aciklama?: string; elemanlar?: unknown }>(text);
       return Response.json({
         aciklama: String(veri.aciklama ?? "").trim() || "Bunu birlikte inceleyelim.",
