@@ -20,16 +20,38 @@ export class AiHatasi extends Error {
   }
 }
 
-export function apiAyarlari() {
-  const baseUrl = (process.env.OPENAI_COMPAT_BASE_URL || VARSAYILAN_BASE_URL).replace(/\/$/, "");
-  const apiKey = process.env.OPENAI_COMPAT_API_KEY;
-  if (!apiKey) {
-    throw new AiHatasi(
-      "Sunucuda OPENAI_COMPAT_API_KEY ortam değişkeni tanımlı değil. Ayarlar > Vars bölümünden ekleyin.",
-      500,
-    );
+const PLACEHOLDER_DESENI = /^(your[-_ ]?|<|\.\.\.|xxx|changeme|placeholder|buraya|anahtar|api[-_ ]?key$)/i;
+
+function envDogrula(ad: string, deger: string) {
+  if (!deger) {
+    throw new AiHatasi(`Sunucuda ${ad} ortam değişkeni boş veya tanımlı değil. Ayarlar > Vars bölümünden ekleyin.`, 500);
   }
-  return { baseUrl, apiKey };
+  if (PLACEHOLDER_DESENI.test(deger)) {
+    throw new AiHatasi(`${ad} değeri örnek/placeholder gibi görünüyor. Gerçek değeri Ayarlar > Vars bölümüne girin.`, 500);
+  }
+  for (let i = 0; i < deger.length; i++) {
+    const kod = deger.charCodeAt(i);
+    if (kod > 255) {
+      throw new AiHatasi(
+        `${ad} değerinin ${i + 1}. karakteri ("${deger[i]}", kod ${kod}) ASCII dışı. HTTP başlıkları yalnızca ASCII kabul eder; değeri Türkçe karakter veya boşluk olmadan yeniden kopyalayın.`,
+        400,
+      );
+    }
+    if (kod < 32 || kod === 127) {
+      throw new AiHatasi(`${ad} değerinin ${i + 1}. karakteri görünmez bir kontrol karakteri (kod ${kod}). Değeri yeniden kopyalayın.`, 400);
+    }
+  }
+}
+
+export function apiAyarlari() {
+  const baseUrl = (process.env.OPENAI_COMPAT_BASE_URL ?? "").trim() || VARSAYILAN_BASE_URL;
+  const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? "").trim();
+  envDogrula("OPENAI_COMPAT_API_KEY", apiKey);
+  envDogrula("OPENAI_COMPAT_BASE_URL", baseUrl);
+  if (!/^https?:\/\/[^\s/]+/i.test(baseUrl)) {
+    throw new AiHatasi("OPENAI_COMPAT_BASE_URL geçerli bir http(s) adresi değil (ör. https://api.noxery.net/v1).", 400);
+  }
+  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
 }
 
 async function hataMesajiOku(yanit: Response): Promise<string> {

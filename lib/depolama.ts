@@ -13,6 +13,7 @@ export const ANAHTARLAR = {
   ses: "ses",
   hiz: "hiz",
   mod: "ogretmen-modu",
+  seviye: "seviye",
   ders: "ders",
   tahta: "tahta",
 } as const;
