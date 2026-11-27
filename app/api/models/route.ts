@@ -1,7 +1,5 @@
 import { apiIstegi, hataYaniti } from "@/lib/ai-yardimci";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const yanit = await apiIstegi("/models", { method: "GET" }, 20_000);
