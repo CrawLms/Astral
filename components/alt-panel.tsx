@@ -92,9 +92,9 @@ export function AltPanel({
   return (
     <section
       aria-label="Öğretmen ve soru paneli"
-      className="grid max-h-[45vh] shrink-0 grid-cols-1 gap-3 overflow-y-auto border-t border-border bg-background p-3 md:max-h-64 md:grid-cols-[1fr_minmax(320px,420px)]"
+      className="grid max-h-[45vh] shrink-0 grid-cols-1 gap-3 overflow-y-auto border-t border-border bg-background p-3 lg:max-h-64 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]"
     >
-      <div className="flex min-h-0 flex-col gap-2">
+          <div className="flex flex-col gap-2 lg:min-h-0">
         {hata && (
           <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/10 p-2.5 text-sm text-destructive">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />

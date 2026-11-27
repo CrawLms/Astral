@@ -12,7 +12,7 @@ Mevcut Beyaz Tahta uygulaması (Noxery `/chat/completions` API, PDF yükleme ve 
 6. Alt panel: matematik/fen sembol çubuğu, soru fotoğrafı yükleme ve Ctrl+V ile yapıştırma (tahtanın soluna yerleştirme) — **TAMAMLANDI**
 7. Ünite sonu 3 soruluk mini test ve "Tahtada Çizerek Açıkla" — **TAMAMLANDI**
 8. Kalıcı kayıt: tüm ders verilerini ve tahta çizimlerini `idb-keyval` ile IndexedDB'ye taşı — **TAMAMLANDI**
-9. Doğrulama (tip kontrolü, lint, önizleme)
+9. Doğrulama (tip kontrolü, lint, önizleme) — **TAMAMLANDI**
 
 ## Yapılan İşlemler
 
@@ -30,4 +30,7 @@ Mevcut Beyaz Tahta uygulaması (Noxery `/chat/completions` API, PDF yükleme ve 
 - `components/mini-test.tsx` (yeni) + `mode: "test"`: ünite anlatımı bittiğinde "3 Soruluk Mini Test Oluştur" butonu çıkıyor; yanlış cevapta "Tahtada Çizerek Açıkla" ile öğretmen o soruyu tahtada çizerek anlatıyor.
 - `lib/depolama.ts` `idb-keyval` (IndexedDB) ile async hale getirildi; eski `localStorage` verileri ilk okumada otomatik taşınıp siliniyor. PDF sayfaları, ünite planı, ayarlar (model, ses, hız, mod), son ders sahneleri ve `components/beyaz-tahta.tsx` üzerinden Excalidraw çizimleri + görsel dosyaları (debounce ile) IndexedDB'ye kaydediliyor ve açılışta geri yükleniyor.
 - Tip kontrolü (`tsc --noEmit`) ve ESLint hatasız geçti.
+- Adım 9: `tsc --noEmit` ve `eslint .` tekrar hatasız geçti. Önizleme tarayıcıda açıldı, konsol hatası yok. Dar ekranda (796px) alt paneldeki sembol çubuğu ve "Soru fotoğrafı" butonu taşıyordu, mesaj metni de sıkışıyordu: `components/alt-panel.tsx` içinde iki sütunlu düzen `lg` kırılımına alındı ve sol sütunun `min-h-0` değeri yalnızca `lg`'de uygulandı. 796px ve 1440px genişlikte doğrulandı.
+- V0 API bakiyesi kontrol edildi: 4.80 / 5 (0.50 sınırının üstünde).
+- Tüm adımlar tamamlandığı için bu dosya silindi.
 
