@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { OgretmenModu } from "@/lib/types";
+import { SEVIYELER, type OgretmenModu, type Seviye } from "@/lib/types";
 import {
   Cpu,
   Gauge,
+  GraduationCap,
   Lightbulb,
   MessagesSquare,
   Eraser,
@@ -32,6 +33,8 @@ type Props = {
   vurusSayisi: number;
   aktifVurus: number;
   onHiz: (hiz: number) => void;
+  seviye: Seviye;
+  onSeviye: (seviye: Seviye) => void;
   onMod: (mod: OgretmenModu) => void;
   onOynat: () => void;
   onDuraklat: () => void;
@@ -206,6 +209,22 @@ export function UstCubuk(p: Props) {
           {HIZLAR.map((h) => (
             <option key={h} value={h}>
               {h}x
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex h-[46px] items-center gap-1.5 rounded-lg border border-border px-2 text-xs">
+        <GraduationCap className="size-4 text-muted-foreground" aria-hidden />
+        <span className="sr-only">Öğrenci seviyesi</span>
+        <select
+          value={p.seviye}
+          onChange={(e) => p.onSeviye(e.target.value as Seviye)}
+          className="bg-transparent font-medium outline-none"
+        >
+          {SEVIYELER.map((s) => (
+            <option key={s.deger} value={s.deger}>
+              {s.etiket}
             </option>
           ))}
         </select>

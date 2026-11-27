@@ -1,161 +1,204 @@
 import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
-import type { Nokta, OgretmenModu, Sahne, TahtaElemani, TestSorusu, Vurus } from "@/lib/types";
+import type {
+  Aksiyon,
+  BaglantiOku,
+  Bolge,
+  GrafikFonksiyonu,
+  GrafikNoktasi,
+  MiniGorev,
+  OgretmenModu,
+  Sahne,
+  Seviye,
+  TestSorusu,
+  VurgulananIl,
+  Vurus,
+} from "@/lib/types";
 
 export const maxDuration = 300;
 
-const GORSEL_KURALI = `ÇOK ÖNEMLİ KURAL: Asla sadece dikdörtgen kutu ve düz yazı çizme! Konuyu gerçekten görselleştir.
-Her sahnede en az bir gerçek görsel çizim olmalı: grafik, eksen, eğri, geometrik şekil, hücre/atom çizimi, düzenek, akış oku, formül (latex) veya svg diyagram.`;
+const SEVIYE_ACIKLAMA: Record<Seviye, string> = {
+  ilkokul: "İlkokul öğrencisi: çok basit kelimeler, somut günlük örnekler, kısa cümleler.",
+  ortaokul: "Ortaokul öğrencisi (LGS): açık dil, temel terimleri tanımlayarak, örnekli anlatım.",
+  lise: "Lise / YKS öğrencisi: müfredat terimleri, sınavda çıkan tuzaklar ve formüllerle derinlemesine anlatım.",
+  universite: "Üniversite öğrencisi: akademik terminoloji, ispat/gerekçe ve ileri bağlantılarla anlatım.",
+};
 
-const ELEMAN_KURALLARI = `${GORSEL_KURALI}
+const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ÇOK ÖNEMLİ):
+- ASLA serbest çizim (freedraw), [x,y] nokta listesi veya koordinatla elle şekil çizme. Harita, organ, nesne gibi karmaşık şekilleri koordinatla çizmeye çalışma.
+- Tahtaya yalnızca aşağıdaki YAPISAL GÖRSEL BLOKLARI "aksiyonlar" ile ekle. Her aksiyonun "gorsel" alanı bir blok kimliğidir (ör. "h1"); aynı kimliği tekrar kullanınca o bloğa yeni parça eklenir. Bir sahnede en fazla 3 blok olsun; yerleşimi uygulama otomatik yapar.
+1) {"tip":"turkiye_haritasi","gorsel":"h1","vurgulananIller":[{"plaka":6,"ad":"Ankara","renk":"#e03131","etiket":"Başkent"}],"bolgeRenkleri":{"ic-anadolu":"#fff3bf"},"baglantiOklari":[{"neredenPlaka":34,"nereyePlaka":6,"etiket":"göç"}]}
+   → Türkiye, iller, bölgeler, coğrafi dağılım konularında ZORUNLU. Gerçek 81 il haritası çizilir; sen sadece plaka numarası verirsin. Bölge anahtarları: marmara, ege, akdeniz, ic-anadolu, karadeniz, dogu-anadolu, guneydogu-anadolu. Haritanın ilk aksiyonu boş da olabilir (sadece haritayı çizer).
+2) {"tip":"matematik_grafigi","gorsel":"g1","xAralik":[-5,5],"yAralik":[-2,10],"fonksiyonlar":[{"ifade":"x^2-2*x+1","renk":"#1971c2","etiket":"f(x)"}],"noktalar":[{"x":1,"y":0,"etiket":"Tepe"}]}
+   → fonksiyon, doğru, parabol, fizik grafikleri (konum-zaman vb.). Eğriyi SEN hesaplama; sadece ifade yaz. İfadede x, sayılar, + - * / ^, parantez, sin cos tan sqrt abs ln log exp, pi kullan. xAralik/yAralik grafiğin ilk aksiyonunda zorunlu.
+3) {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
+   → akış şeması, zaman çizelgesi, üçgen/çember/açı, kuvvet diyagramı, devre, hücre/atom/molekül şeması. SADECE path, circle, ellipse, rect, line, polyline, polygon, text, g etiketleri; viewBox='0 0 800 460'; fill='none' veya açık ton dolgu, stroke='#1e1e1e', yazılar için <text x y font-size fill>. Aynı bloğa sonraki aksiyonlarda yeni parçalar ekleyebilirsin (aynı koordinat sistemi). Script, style, image, href, on* YASAK. SVG içinde tek tırnak kullan.
+4) {"tip":"formul_ve_not","gorsel":"f1","latex":"F = m \\\\cdot a","not":"kısa el yazısı not","renk":"formul","altiCizili":true}
+   → formül (KaTeX sözdizimi, JSON'da ters bölüyü \\\\ olarak kaçır) ve/veya kısa not satırı. Her aksiyon bloğa bir satır ekler.
+5) {"tip":"vurgula","gorsel":"h1"} → daha önce çizilmiş bloğu lazer halkasıyla gösterir.
+Renkler: "#hex" veya "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı), "sonuc" (yeşil), "normal" (siyah).`;
 
-"elemanlar" dizisi tahtaya çizilecek şekilleri içerir. Koordinatlar sahneye görelidir: x 0-1000, y 0-600 (sol üst 0,0). Bir sahnedeki tüm vuruşlar AYNI koordinat alanını paylaşır; önceki vuruşlarda çizilenlerin üstüne binme.
-Eleman türleri:
-- {"tip":"freedraw","id":"d1","noktalar":[[x,y],[x,y],...],"renk":"vurgu","kalinlik":2}  → serbest el çizimi: dalga, eğri, parabol, kap, insan/nesne taslağı. Pürüzsüz görünmesi için 12-60 nokta kullan.
-- {"tip":"line","id":"l1","noktalar":[[x,y],[x,y]],"kapali":false}  → düz çizgi/çoklu çizgi: X/Y ekseni, grafik çizgisi, üçgen (kapali:true), açı, vektör, zaman çizelgesi.
-- {"tip":"arrow","id":"a1","noktalar":[[x,y],[x,y],[x,y]],"egri":true,"metin":"kısa etiket"}  → (eğri) ok: akış, sebep-sonuç, kuvvet yönü. Alternatif: {"tip":"arrow","kaynak":"k1","hedef":"k2"}.
-- {"tip":"ellipse","id":"e1","x":0,"y":0,"genislik":120,"yukseklik":120,"arkaPlan":"#d3f9d8","metin":"isteğe bağlı"}  → hücre, atom, yörünge, Venn şeması, tekerlek.
-- {"tip":"kutu","id":"k1","x":0,"y":0,"genislik":220,"yukseklik":80,"metin":"Kısa kavram","arkaPlan":"#e7f5ff"}  → kavram kutusu (az kullan).
-- {"tip":"metin","id":"t1","x":0,"y":0,"metin":"Not","boyut":22,"renk":"baslik"}  → el yazısı not.
-- {"tip":"vurgu","x":0,"y":0,"genislik":200,"yukseklik":60}  → önemli yeri çevreleyen kırmızı halka.
-- {"tip":"latex","id":"f1","x":0,"y":0,"latex":"F = m \\\\cdot a","boyut":32,"renk":"formul"}  → matematik/kimya denklemi (KaTeX sözdizimi, JSON içinde ters bölüyü \\\\ olarak kaçır).
-- {"tip":"svg","id":"s1","x":0,"y":0,"genislik":360,"svg":"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 240'>...</svg>"}  → karmaşık diyagram: fonksiyon grafiği, devre, anatomi, fizik düzeneği. Beyaz tahta el çizimi stili: fill='none', stroke='#1e1e1e', stroke-width 2-3, stroke-linecap='round'; yazılar için font-family='Virgil, Comic Sans MS, cursive'. Script, dış bağlantı veya resim KULLANMA. SVG içinde tek tırnak kullan.
-Renk kodlaması ("renk" alanına bu adları veya #hex yaz): "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı, uyarı/önemli), "sonuc" (yeşil), "normal" (siyah).
-Kurallar: Elemanlar birbirinin üstüne binmesin (en az 30px boşluk), yazılar kısa olsun, bir vuruşta 1-5 eleman olsun. Arka plan için açık tonlar: #e7f5ff, #fff3bf, #d3f9d8, #ffe3e3, #f3f0ff.`;
+const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölünür. Öğretmen her vuruşun "soz" cümlesini söylerken AYNI ANDA o vuruşun "aksiyonlar"ını kalemle çizer.
+- "id": "v1", "v2"...
+- "soz": öğretmenin tam o an söyleyeceği TEK kısa cümle (en fazla ~20 kelime), konuşma dilinde Türkçe, o an çizilen şeyi anlatsın ("Şimdi Ankara'yı kırmızıyla boyuyorum, burası başkentimiz.").
+- "aksiyonlar": yalnızca o cümleye karşılık gelen 0-2 küçük görsel işlem (bir il, bir ok, bir eğri, bir formül satırı...). Bir sahnenin tüm çizimini tek vuruşa yığma.`;
 
-const VURUS_KURALLARI = `Her sahne "vuruslar" (mikro adımlar) dizisine bölünür. Öğretmen her vuruşun "konusmaMetni"ni okurken AYNI ANDA o vuruşun "elemanlar"ını tahtaya çizer; yani konuşma, o an çizilen şeyi anlatmalı ("Şimdi buraya X eksenini çiziyorum…").
-Vuruş alanları:
-- "konusmaMetni": 1-2 cümlelik doğal, konuşma dilinde Türkçe anlatım
-- "elemanlar": bu vuruşta çizilecek yeni şekiller (boş olabilir)
-- "vurgulananId": daha önceki bir vuruşta çizilmiş elemanın id'si; öğretmen bu sırada onu lazerle gösterir. Yoksa null.
-- "animasyonSuresiMs": çizimin yaklaşık süresi (800-6000)`;
+const GOREV_KURALI = `"miniGorev" (isteğe bağlı, her 2-3 sahnede bir): {"tur":"il_tikla","yonerge":"Haritada Ankara'ya tıkla","dogruPlaka":6} (yalnızca sahnede harita varsa) veya {"tur":"tahtaya_yaz","yonerge":"Sonucu tahtaya yazıp Tahtayla Birlikte Gönder'e bas"}. Yoksa null.`;
 
 const ANLAT_TALIMATI = `Sen sabırlı, net ve sıcak bir Türk öğretmensin. Beyaz tahtada konuşurken eş zamanlı çizerek ders anlatıyorsun.
 Sana bir ünitenin TAM metni veriliyor. Bu metindeki HER kavramı, tanımı, formülü, örneği ve detayı eksiksiz öğret; özetleyip atlama.
-Anlatımı mantıklı sahnelere böl (konunun uzunluğuna göre 4-12 sahne), her sahnede 3-8 vuruş olsun.
-- "baslik": sahnenin kısa başlığı
-- "miniSoru": öğrencinin anladığını kontrol eden kısa soru YA DA null. Önemli yerlerde (her 2-3 sahnede bir) soru sor; öğretmen burada durup öğrenciyi bekler.
+Anlatımı mantıklı sahnelere böl (4-12 sahne), her sahnede 4-10 vuruş olsun.
+- "baslik": sahnenin kısa başlığı (1-3 kelime)
+- "miniSoru": öğrencinin anladığını kontrol eden kısa soru YA DA null.
+${GOREV_KURALI}
 ${VURUS_KURALLARI}
-${ELEMAN_KURALLARI}
-YALNIZCA şu JSON'u döndür, başka hiçbir şey yazma:
-{"sahneler":[{"baslik":"...","miniSoru":null,"vuruslar":[{"konusmaMetni":"...","vurgulananId":null,"animasyonSuresiMs":2000,"elemanlar":[]}]}]}`;
+${GORSEL_KURALLARI}
+YALNIZCA şu JSON'u döndür:
+{"sahneler":[{"baslik":"...","miniSoru":null,"miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
 
 const SOKRATIK_ANLAT_TALIMATI = `Sen Sokratik yöntemle öğreten sabırlı bir Türk öğretmensin. Cevabı veya çözümü ASLA doğrudan söyleme ya da tahtaya yazma.
-Sana bir ünitenin metni veriliyor. Konuyu 3-8 sahneye böl. Her sahnede:
-- Tahtaya yalnızca soruyu, verilenleri, şemayı ve küçük ipuçlarını çiz (çözümü, sonucu ve cevabı çizme).
-- Öğrenciyi düşündüren yönlendirici sorular sor.
-- "miniSoru" HER sahnede zorunludur: öğrencinin kendi başına çözüp tahtaya çizerek veya yazarak cevaplayacağı soru. Öğretmen burada durup öğrencinin göndermesini bekler.
+Sana bir ünitenin metni veriliyor. Konuyu 3-8 sahneye böl, her sahnede 3-8 vuruş olsun. Tahtaya yalnızca soruyu, verilenleri, şemayı ve küçük ipuçlarını çiz.
+- "miniSoru" HER sahnede zorunlu: öğrencinin kendi başına çözüp yazarak veya tahtaya çizerek cevaplayacağı soru.
+${GOREV_KURALI} Haritalı sahnelerde il_tikla görevini tercih et.
 ${VURUS_KURALLARI}
-${ELEMAN_KURALLARI}
-YALNIZCA şu JSON'u döndür, başka hiçbir şey yazma:
-{"sahneler":[{"baslik":"...","miniSoru":"...","vuruslar":[{"konusmaMetni":"...","vurgulananId":null,"animasyonSuresiMs":2000,"elemanlar":[]}]}]}`;
+${GORSEL_KURALLARI}
+YALNIZCA şu JSON'u döndür:
+{"sahneler":[{"baslik":"...","miniSoru":"...","miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
 
-const SORU_ORTAK = `Öğrencinin tahtada çizdiği, kırmızıyla işaretlediği yerleri ve yüklediği soru fotoğraflarını doğrudan görerek değerlendir.
-Cevabını tahtada canlı çizerek ver: "vuruslar" dizisi oluştur (2-8 vuruş). Tahtada yeni boş bir alana çizeceksin; koordinatlar bu yeni alana görelidir.
-Eğer öğrenci bir soru fotoğrafı gönderdiyse fotoğraf tahtanın soluna yerleştirildi; sen çözümü x 0-700 aralığında, fotoğrafın SAĞINA adım adım çiz.`;
+const SORU_ORTAK = `Öğrencinin gönderdiği tahta görüntüsü, öğretmenin tahtadaki çizimleri (harita, grafik, diyagram) ile öğrencinin üstüne KIRMIZI kalemle yaptığı işaretlerin birleşimidir; işaretlenen yerleri doğrudan görerek değerlendir.
+Cevabını tahtada canlı çizerek ver: 2-8 vuruşluk "vuruslar" dizisi oluştur (yeni boş bir tahta alanına çizilir).
+Öğrenci soru fotoğrafı gönderdiyse fotoğraf tahtanın soluna yerleştirilir; sen çözümü yanına adım adım çiz.`;
 
 const SORU_TALIMATI = `Sen sabırlı ve net bir Türk öğretmensin. ${SORU_ORTAK}
-Soruyu adım adım çöz ve açıkla. Öğrenci bir mini soruya cevap veriyorsa cevabın doğru olup olmadığını nazikçe söyle ve gerekçesini göster.
+Soruyu adım adım çöz ve açıkla. Öğrenci bir mini soruya cevap veriyorsa doğru olup olmadığını nazikçe söyle ve gerekçesini göster.
 ${VURUS_KURALLARI}
-${ELEMAN_KURALLARI}
-YALNIZCA şu JSON'u döndür, başka hiçbir şey yazma:
-{"aciklama":"Kısa özet","vuruslar":[{"konusmaMetni":"...","vurgulananId":null,"animasyonSuresiMs":2000,"elemanlar":[]}]}`;
+${GORSEL_KURALLARI}
+YALNIZCA şu JSON'u döndür:
+{"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
 
 const SOKRATIK_SORU_TALIMATI = `Sen Sokratik yöntemle öğreten bir Türk öğretmensin. ${SORU_ORTAK}
-Cevabı veya çözümün tamamını ASLA verme. Öğrencinin attığı adımı değerlendir: doğruysa takdir et ve bir sonraki adımı düşündüren soruyu sor; yanlışsa hatanın nerede olduğunu ipucuyla göster.
-Tahtaya yalnızca ipucu, verilen bilgiler ve yönlendirici sorular çiz. Son vuruş daima öğrenciye bir soru ile bitsin.
+Cevabı veya çözümün tamamını ASLA verme. Öğrencinin attığı adımı değerlendir: doğruysa takdir et ve sonraki adımı düşündüren soruyu sor; yanlışsa hatanın nerede olduğunu ipucuyla göster. Son vuruş daima öğrenciye bir soruyla bitsin.
 ${VURUS_KURALLARI}
-${ELEMAN_KURALLARI}
-YALNIZCA şu JSON'u döndür, başka hiçbir şey yazma:
-{"aciklama":"Kısa özet","vuruslar":[{"konusmaMetni":"...","vurgulananId":null,"animasyonSuresiMs":2000,"elemanlar":[]}]}`;
+${GORSEL_KURALLARI}
+YALNIZCA şu JSON'u döndür:
+{"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
 
 const TEST_TALIMATI = `Sen bir Türk öğretmensin. Verilen ünite metninden öğrencinin anlayıp anlamadığını ölçen TAM 3 adet çoktan seçmeli soru hazırla.
 Her sorunun 4 seçeneği olsun, yalnızca biri doğru olsun. Sorular ezber değil kavrama ölçsün.
-YALNIZCA şu JSON'u döndür, başka hiçbir şey yazma:
+YALNIZCA şu JSON'u döndür:
 {"sorular":[{"soru":"...","secenekler":["A","B","C","D"],"dogruIndex":0,"aciklama":"Doğru cevabın kısa gerekçesi"}]}`;
 
-const GECERLI_TIPLER = new Set([
-  "kutu",
-  "ok",
-  "metin",
-  "vurgu",
-  "freedraw",
-  "ellipse",
-  "line",
-  "arrow",
-  "svg",
-  "latex",
-]);
+const BOLGELER = new Set<Bolge>(["marmara", "ege", "akdeniz", "ic-anadolu", "karadeniz", "dogu-anadolu", "guneydogu-anadolu"]);
 
-const sayi = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+const sayi = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : undefined);
 const yazi = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
-
-function noktalariTemizle(ham: unknown): Nokta[] | undefined {
-  if (!Array.isArray(ham)) return undefined;
-  const sonuc: Nokta[] = [];
-  for (const n of ham) {
-    if (Array.isArray(n) && typeof n[0] === "number" && typeof n[1] === "number") sonuc.push([n[0], n[1]]);
-    else if (n && typeof n === "object" && typeof n.x === "number" && typeof n.y === "number") sonuc.push([n.x, n.y]);
-    if (sonuc.length >= 200) break;
-  }
-  return sonuc.length >= 2 ? sonuc : undefined;
-}
+const renk = (v: unknown) => {
+  const r = yazi(v, 20);
+  return r && /^(#[0-9a-f]{3,8}|[a-z]+)$/i.test(r) ? r : undefined;
+};
+const plaka = (v: unknown) => {
+  const n = sayi(v);
+  return n !== undefined && Number.isInteger(n) && n >= 1 && n <= 81 ? n : undefined;
+};
+const dizi = <T,>(v: unknown, max: number, f: (x: Record<string, unknown>) => T | undefined): T[] =>
+  Array.isArray(v) ? v.flatMap((x) => (x && typeof x === "object" ? [f(x)] : [])).filter((x): x is T => x !== undefined).slice(0, max) : [];
+const aralik = (v: unknown): [number, number] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const a = sayi(v[0]);
+  const b = sayi(v[1]);
+  return a !== undefined && b !== undefined && b > a && b - a < 1e6 ? [a, b] : undefined;
+};
 
 function svgTemizle(ham: unknown) {
   if (typeof ham !== "string" || !/<svg[\s>]/i.test(ham)) return undefined;
   return ham
-    .slice(0, 40_000)
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, "")
-    .replace(/(href\s*=\s*)("|')\s*(javascript|https?):[^"']*\2/gi, "$1$2#$2");
+    .slice(0, 30_000)
+    .replace(/<(script|style|foreignObject|image|iframe)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<(script|style|foreignObject|image|iframe)[^>]*\/?>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s(xlink:)?href\s*=\s*("[^"]*"|'[^']*')/gi, "");
 }
 
-function elemanlariTemizle(ham: unknown): TahtaElemani[] {
-  if (!Array.isArray(ham)) return [];
-  const sonuc: TahtaElemani[] = [];
-  for (const h of ham) {
-    if (!h || typeof h !== "object" || !GECERLI_TIPLER.has(h.tip)) continue;
-    const e: TahtaElemani = {
-      tip: h.tip,
-      id: yazi(h.id, 40),
-      x: sayi(h.x),
-      y: sayi(h.y),
-      genislik: sayi(h.genislik),
-      yukseklik: sayi(h.yukseklik),
-      metin: yazi(h.metin, 300),
-      renk: yazi(h.renk, 20),
-      arkaPlan: yazi(h.arkaPlan, 20),
-      kaynak: yazi(h.kaynak, 40),
-      hedef: yazi(h.hedef, 40),
-      boyut: sayi(h.boyut),
-      noktalar: noktalariTemizle(h.noktalar),
-      egri: h.egri === true,
-      kapali: h.kapali === true,
-      kalinlik: sayi(h.kalinlik),
-      svg: h.tip === "svg" ? svgTemizle(h.svg) : undefined,
-      latex: h.tip === "latex" ? yazi(h.latex, 1000) : undefined,
-    };
-    if (e.tip === "svg" && !e.svg) continue;
-    if (e.tip === "latex" && !e.latex) continue;
-    if ((e.tip === "freedraw" || e.tip === "line") && !e.noktalar) continue;
-    sonuc.push(e);
-    if (sonuc.length >= 20) break;
+function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
+  const gorsel = yazi(h.gorsel, 30) ?? "b1";
+  switch (h.tip) {
+    case "turkiye_haritasi": {
+      const bolgeRenkleri: Partial<Record<Bolge, string>> = {};
+      if (h.bolgeRenkleri && typeof h.bolgeRenkleri === "object") {
+        for (const [k, v] of Object.entries(h.bolgeRenkleri)) {
+          const r = renk(v);
+          if (BOLGELER.has(k as Bolge) && r) bolgeRenkleri[k as Bolge] = r;
+        }
+      }
+      return {
+        tip: "turkiye_haritasi",
+        gorsel,
+        vurgulananIller: dizi<VurgulananIl>(h.vurgulananIller, 20, (x) => {
+          const p = plaka(x.plaka);
+          return p ? { plaka: p, ad: yazi(x.ad, 30) ?? "", renk: renk(x.renk) ?? "vurgu", etiket: yazi(x.etiket, 40) } : undefined;
+        }),
+        bolgeRenkleri,
+        baglantiOklari: dizi<BaglantiOku>(h.baglantiOklari, 10, (x) => {
+          const a = plaka(x.neredenPlaka);
+          const b = plaka(x.nereyePlaka);
+          return a && b && a !== b ? { neredenPlaka: a, nereyePlaka: b, etiket: yazi(x.etiket, 30) } : undefined;
+        }),
+      };
+    }
+    case "matematik_grafigi":
+      return {
+        tip: "matematik_grafigi",
+        gorsel,
+        xAralik: aralik(h.xAralik),
+        yAralik: aralik(h.yAralik),
+        fonksiyonlar: dizi<GrafikFonksiyonu>(h.fonksiyonlar, 4, (x) => {
+          const ifade = yazi(x.ifade, 200);
+          return ifade ? { ifade, renk: renk(x.renk) ?? "baslik", etiket: yazi(x.etiket, 30) } : undefined;
+        }),
+        noktalar: dizi<GrafikNoktasi>(h.noktalar, 8, (x) => {
+          const nx = sayi(x.x);
+          const ny = sayi(x.y);
+          return nx !== undefined && ny !== undefined ? { x: nx, y: ny, etiket: yazi(x.etiket, 30) ?? "" } : undefined;
+        }),
+      };
+    case "geometri_ve_diyagram": {
+      const svg = svgTemizle(h.svg);
+      return svg ? { tip: "geometri_ve_diyagram", gorsel, svg } : undefined;
+    }
+    case "formul_ve_not": {
+      const latex = yazi(h.latex, 600);
+      const not = yazi(h.not, 160);
+      return latex || not ? { tip: "formul_ve_not", gorsel, latex, not, renk: renk(h.renk), altiCizili: h.altiCizili === true } : undefined;
+    }
+    case "vurgula":
+      return { tip: "vurgula", gorsel };
+    default:
+      return undefined;
   }
-  return sonuc;
 }
 
 function vuruslariTemizle(ham: unknown): Vurus[] {
   if (!Array.isArray(ham)) return [];
   return ham
     .filter((v) => v && typeof v === "object")
-    .map((v) => ({
-      konusmaMetni: String(v.konusmaMetni ?? "").trim(),
-      vurgulananId: yazi(v.vurgulananId, 40) ?? null,
-      animasyonSuresiMs: Math.max(400, Math.min(8000, sayi(v.animasyonSuresiMs) ?? 2000)),
-      elemanlar: elemanlariTemizle(v.elemanlar),
+    .map((v, i) => ({
+      id: yazi(v.id, 20) ?? `v${i + 1}`,
+      soz: String(v.soz ?? v.konusmaMetni ?? "").trim().slice(0, 400),
+      aksiyonlar: dizi(v.aksiyonlar, 4, aksiyonTemizle),
     }))
-    .filter((v) => v.konusmaMetni || v.elemanlar.length)
+    .filter((v) => v.soz || v.aksiyonlar.length)
     .slice(0, 16);
+}
+
+function gorevTemizle(ham: unknown): MiniGorev | null {
+  if (!ham || typeof ham !== "object") return null;
+  const g = ham as Record<string, unknown>;
+  const yonerge = yazi(g.yonerge, 200);
+  if (!yonerge) return null;
+  if (g.tur === "il_tikla") {
+    const p = plaka(g.dogruPlaka);
+    return p ? { tur: "il_tikla", yonerge, dogruPlaka: p } : null;
+  }
+  return g.tur === "tahtaya_yaz" ? { tur: "tahtaya_yaz", yonerge } : null;
 }
 
 function sahneleriTemizle(ham: unknown): Sahne[] {
@@ -163,13 +206,14 @@ function sahneleriTemizle(ham: unknown): Sahne[] {
   return ham
     .filter((s) => s && typeof s === "object")
     .map((s) => {
-      let vuruslar = vuruslariTemizle(s.vuruslar);
-      if (vuruslar.length === 0 && typeof s.anlatimMetni === "string") {
-        vuruslar = [{ konusmaMetni: s.anlatimMetni.trim(), vurgulananId: null, animasyonSuresiMs: 2500, elemanlar: elemanlariTemizle(s.elemanlar) }];
-      }
+      const vuruslar = vuruslariTemizle(s.vuruslar);
+      const haritaVar = vuruslar.some((v) => v.aksiyonlar.some((a) => a.tip === "turkiye_haritasi"));
+      let miniGorev = gorevTemizle(s.miniGorev);
+      if (miniGorev?.tur === "il_tikla" && !haritaVar) miniGorev = null;
       return {
-        baslik: String(s.baslik ?? "").trim() || "Sahne",
-        miniSoru: typeof s.miniSoru === "string" && s.miniSoru.trim() ? s.miniSoru.trim() : null,
+        baslik: String(s.baslik ?? "").trim().slice(0, 60) || "Sahne",
+        miniSoru: yazi(s.miniSoru, 300) ?? null,
+        miniGorev,
         vuruslar,
       };
     })
@@ -195,18 +239,12 @@ function sorulariTemizle(ham: unknown): TestSorusu[] {
 }
 
 type Govde =
-  | {
-      mode: "anlat";
-      model?: string;
-      ogretmenModu?: OgretmenModu;
-      baslik?: string;
-      altKonular?: string[];
-      metin?: string;
-    }
+  | { mode: "anlat"; model?: string; ogretmenModu?: OgretmenModu; seviye?: Seviye; baslik?: string; altKonular?: string[]; metin?: string }
   | {
       mode: "soru";
       model?: string;
       ogretmenModu?: OgretmenModu;
+      seviye?: Seviye;
       soru?: string;
       gorsel?: string;
       fotograf?: string;
@@ -214,14 +252,10 @@ type Govde =
       sonAnlatim?: string;
       miniSoru?: string | null;
     }
-  | {
-      mode: "test";
-      model?: string;
-      baslik?: string;
-      metin?: string;
-    };
+  | { mode: "test"; model?: string; baslik?: string; metin?: string };
 
-const base64 = (v?: string) => (v ?? "").replace(/^data:image\/[\w+.-]+;base64,/, "");
+const base64 = (v?: string | null) => (v ?? "").replace(/^data:image\/[\w+.-]+;base64,/, "");
+const seviyeNotu = (s?: Seviye) => `\nÖğrenci seviyesi: ${SEVIYE_ACIKLAMA[s && s in SEVIYE_ACIKLAMA ? s : "lise"]} Dili, örnekleri ve derinliği buna göre ayarla.`;
 
 export async function POST(req: Request) {
   let govde: Govde;
@@ -236,24 +270,16 @@ export async function POST(req: Request) {
   try {
     if (govde.mode === "anlat") {
       const metin = (govde.metin ?? "").trim();
-      if (!metin) {
-        return Response.json({ hata: "Anlatılacak metin boş." }, { status: 400 });
-      }
+      if (!metin) return Response.json({ hata: "Anlatılacak metin boş." }, { status: 400 });
       const sokratik = govde.ogretmenModu === "sokratik";
       const altKonular = govde.altKonular?.length ? `\nAlt konular: ${govde.altKonular.join(", ")}` : "";
       const text = await sohbetTamamla(model, [
-        { role: "system", content: sokratik ? SOKRATIK_ANLAT_TALIMATI : ANLAT_TALIMATI },
-        {
-          role: "user",
-          content: `Ünite: ${govde.baslik ?? "Konu"}${altKonular}\n\n--- ÜNİTE METNİ (TAM) ---\n${metin}`,
-        },
+        { role: "system", content: (sokratik ? SOKRATIK_ANLAT_TALIMATI : ANLAT_TALIMATI) + seviyeNotu(govde.seviye) },
+        { role: "user", content: `Ünite: ${govde.baslik ?? "Konu"}${altKonular}\n\n--- ÜNİTE METNİ (TAM) ---\n${metin}` },
       ]);
       const sahneler = sahneleriTemizle(jsonCikar<{ sahneler?: unknown }>(text).sahneler);
       if (sahneler.length === 0) {
-        return Response.json(
-          { hata: "Yapay zekâ sahne üretemedi. Tekrar deneyin veya farklı bir model seçin." },
-          { status: 422 },
-        );
+        return Response.json({ hata: "Yapay zekâ sahne üretemedi. Tekrar deneyin veya farklı bir model seçin." }, { status: 422 });
       }
       return Response.json({ sahneler });
     }
@@ -266,36 +292,33 @@ export async function POST(req: Request) {
         return Response.json({ hata: "Soru, fotoğraf veya tahta görüntüsü gerekli." }, { status: 400 });
       }
       const sokratik = govde.ogretmenModu === "sokratik";
+      const fotoUrl = fotograf.startsWith("data:image/") ? fotograf : "";
       const baglam = [
         govde.uniteBaslik ? `Ünite: ${govde.uniteBaslik}` : "",
         govde.sonAnlatim ? `Öğretmenin son anlatımı: ${govde.sonAnlatim}` : "",
         govde.miniSoru ? `Öğretmenin sorduğu mini soru: ${govde.miniSoru}` : "",
-        fotograf ? "Öğrenci bir soru fotoğrafı yükledi (ekteki ilk görsel). Bu soruyu çöz." : "",
+        fotoUrl ? "Öğrenci bir soru fotoğrafı yükledi (ekteki ilk görsel). Bu soruyu çöz." : "",
+        gorsel ? "Ekteki tahta görüntüsü: öğretmen çizimleri + öğrencinin kırmızı işaretleri." : "",
         `Öğrencinin mesajı: ${soru || "(Yazı yok, yalnızca tahtadaki çizimimi / fotoğrafı değerlendir.)"}`,
       ]
         .filter(Boolean)
         .join("\n");
 
-      const fotoUrl = fotograf.startsWith("data:image/") ? fotograf : "";
       const text = await sohbetTamamla(model, [
-        { role: "system", content: sokratik ? SOKRATIK_SORU_TALIMATI : SORU_TALIMATI },
+        { role: "system", content: (sokratik ? SOKRATIK_SORU_TALIMATI : SORU_TALIMATI) + seviyeNotu(govde.seviye) },
         {
           role: "user",
           content: [
             { type: "text", text: baglam },
             ...(fotoUrl ? [{ type: "image_url" as const, image_url: { url: fotoUrl } }] : []),
-            ...(gorsel
-              ? [{ type: "image_url" as const, image_url: { url: `data:image/png;base64,${gorsel}` } }]
-              : []),
+            ...(gorsel ? [{ type: "image_url" as const, image_url: { url: `data:image/png;base64,${gorsel}` } }] : []),
           ],
         },
       ]);
-      const veri = jsonCikar<{ aciklama?: string; vuruslar?: unknown; elemanlar?: unknown }>(text);
-      let vuruslar = vuruslariTemizle(veri.vuruslar);
+      const veri = jsonCikar<{ aciklama?: string; vuruslar?: unknown }>(text);
       const aciklama = String(veri.aciklama ?? "").trim() || "Bunu birlikte inceleyelim.";
-      if (vuruslar.length === 0) {
-        vuruslar = [{ konusmaMetni: aciklama, vurgulananId: null, animasyonSuresiMs: 2500, elemanlar: elemanlariTemizle(veri.elemanlar) }];
-      }
+      let vuruslar = vuruslariTemizle(veri.vuruslar);
+      if (vuruslar.length === 0) vuruslar = [{ id: "v1", soz: aciklama, aksiyonlar: [] }];
       return Response.json({ aciklama, vuruslar });
     }
 
@@ -307,9 +330,7 @@ export async function POST(req: Request) {
         { role: "user", content: `Ünite: ${govde.baslik ?? "Konu"}\n\n${metin.slice(0, 60_000)}` },
       ]);
       const sorular = sorulariTemizle(jsonCikar<{ sorular?: unknown }>(text).sorular);
-      if (sorular.length === 0) {
-        return Response.json({ hata: "Yapay zekâ test sorusu üretemedi. Tekrar deneyin." }, { status: 422 });
-      }
+      if (sorular.length === 0) return Response.json({ hata: "Yapay zekâ test sorusu üretemedi. Tekrar deneyin." }, { status: 422 });
       return Response.json({ sorular });
     }
 

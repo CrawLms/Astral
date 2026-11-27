@@ -28,7 +28,7 @@ export default function BeyazTahta({ onApi }: Props) {
           elements: kayit?.elements ?? [],
           files: kayit?.files ?? {},
           appState: {
-            viewBackgroundColor: "#ffffff",
+            viewBackgroundColor: "transparent",
             currentItemStrokeColor: "#e03131",
             currentItemFontFamily: 1,
           },
