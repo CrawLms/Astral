@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { KenarCubugu } from "./kenar-cubugu";
 import { UstCubuk } from "./ust-cubuk";
-import { AltPanel, type OgretmenMesaji } from "./alt-panel";
+import { AltPanel } from "./alt-panel";
 import { KalemKatmani } from "./kalem-katmani";
 import { MiniTest } from "./mini-test";
 import { useOynatici } from "@/hooks/use-oynatici";
@@ -26,7 +26,6 @@ import {
   type TestSorusu,
   type TestYaniti,
   type Unite,
-  type Vurus,
 } from "@/lib/types";
 
 const BeyazTahta = dynamic(() => import("./beyaz-tahta"), {
@@ -42,6 +41,12 @@ type Konu = { baslik: string; uniteId: string | null };
 type KayitliDers = { konu: Konu; metin: string; sahneler: Sahne[] };
 type SoruIstegi = { metin: string; fotograf?: HazirGorsel | null; tahtaGonder?: boolean };
 
+function mobilMi() {
+  return !window.matchMedia("(min-width: 768px)").matches;
+}
+
+function vurusYoksay() {}
+
 function modelDuzelt(kayitli: string, varsayilan: string) {
   return kayitli.startsWith("google/") || kayitli.startsWith("openai/") || kayitli.startsWith("anthropic/")
     ? varsayilan
@@ -55,7 +60,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
   const [seviye, setSeviye] = useState<Seviye>("lise");
   const [gorevSonuc, setGorevSonuc] = useState<{ dogru: boolean; metin: string } | null>(null);
   const [hazir, setHazir] = useState(false);
-  const [kenarAcik, setKenarAcik] = useState(true);
+  const [kenarAcik, setKenarAcik] = useState(() => !mobilMi());
   const [uniteler, setUniteler] = useState<Unite[]>([]);
   const [aktifUniteId, setAktifUniteId] = useState<string | null>(null);
   const [sayfalar, setSayfalar] = useState<SayfaMetni[]>([]);
@@ -67,23 +72,15 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
 
   const [konu, setKonu] = useState<Konu | null>(null);
   const [konuMetni, setKonuMetni] = useState("");
-  const [mesaj, setMesaj] = useState<OgretmenMesaji | null>(null);
   const [yukleniyor, setYukleniyor] = useState<string | null>(null);
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
   const [test, setTest] = useState<TestSorusu[] | null>(null);
   const [testYukleniyor, setTestYukleniyor] = useState(false);
 
-  const sahneDegisti = useCallback((sahne: Sahne) => {
-    setGorevSonuc(null);
-    setMesaj({ baslik: sahne.baslik, metin: sahne.vuruslar[0]?.soz ?? "", tur: sahne.ek ? "cevap" : "anlatim" });
-  }, []);
+  const sahneDegisti = useCallback(() => setGorevSonuc(null), []);
 
-  const vurusDegisti = useCallback((sahne: Sahne, vurus: Vurus, sira: number) => {
-    setMesaj({ baslik: sahne.baslik, metin: vurus.soz, tur: sira < 0 ? "cevap" : "anlatim" });
-  }, []);
-
-  const oynatici = useOynatici({ apiRef, sesAcik, hiz, onSahne: sahneDegisti, onVurus: vurusDegisti });
+  const oynatici = useOynatici({ apiRef, sesAcik, hiz, onSahne: sahneDegisti, onVurus: vurusYoksay });
   const aktifSahne = oynatici.aktif >= 0 ? oynatici.sahneler[oynatici.aktif] : null;
   const yukleRef = useRef(oynatici.yukle);
   useEffect(() => {
@@ -120,7 +117,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
         setKonu(ders.konu);
         setKonuMetni(ders.metin);
         yukleRef.current(ders.sahneler, false);
-        setMesaj({ baslik: ders.konu.baslik, metin: "Kaldığın dersten devam etmek için Oynat'a bas.", tur: "bilgi" });
       }
       setHazir(true);
     })();
@@ -164,6 +160,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
     async (yeniKonu: Konu, metin: string, altKonular: string[] = []) => {
       setHata(null);
       setTest(null);
+      if (mobilMi()) setKenarAcik(false);
       setYukleniyor(
         `"${yeniKonu.baslik}" için ${ogretmenModu === "sokratik" ? "Sokratik soru akışı" : "canlı tahta anlatımı"} hazırlanıyor…`,
       );
@@ -214,11 +211,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
     if (!(await yaz(ANAHTARLAR.sayfalar, yeniSayfalar))) {
       setHata("Kitap metni tarayıcıya kaydedilemedi. Sayfa yenilenirse PDF'i tekrar yüklemeniz gerekir.");
     }
-    setMesaj({
-      baslik: "Ders planı hazır",
-      metin: `${yeniSayfalar.length} sayfalık kitaptan ${yeniUniteler.length} ünite çıkarıldı. Soldan bir üniteye tıklayıp anlatımı başlatın.`,
-      tur: "bilgi",
-    });
   }, []);
 
   const sifirla = useCallback(() => {
@@ -229,7 +221,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
     setAktifUniteId(null);
     setKonu(null);
     setKonuMetni("");
-    setMesaj(null);
     setTest(null);
     sil(ANAHTARLAR.sayfalar);
     sil(ANAHTARLAR.kitapAdi);
@@ -271,7 +262,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
           setHata(veri.hata);
           return false;
         }
-        setMesaj({ baslik: "Öğretmenin cevabı", metin: veri.aciklama, tur: "cevap" });
         oynatici.ekSahneOynat({
           baslik: fotograf ? "Adım adım çözüm" : "Öğretmenin açıklaması",
           miniSoru: null,
@@ -345,14 +335,21 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
       uniteyiAnlat(sonraki);
     } else {
       oynatici.duraklat();
-      setMesaj({ baslik: "Tebrikler", metin: "Tüm üniteleri tamamladınız. Harika bir çalışmaydı!", tur: "bilgi" });
     }
   }, [konu, uniteler, uniteyiAnlat, oynatici]);
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
       {kenarAcik && (
-        <div className="fixed inset-y-0 left-0 z-30 w-[300px] shadow-xl md:static md:z-auto md:shadow-none">
+        <button
+          type="button"
+          aria-label="Ders planını kapat"
+          onClick={() => setKenarAcik(false)}
+          className="fixed inset-0 z-30 bg-foreground/30 backdrop-blur-[2px] md:hidden"
+        />
+      )}
+      {kenarAcik && (
+        <div className="kenar-giris fixed inset-y-0 left-0 z-40 w-[min(320px,86vw)] shadow-2xl md:static md:z-auto md:w-[300px] md:shadow-none">
           <KenarCubugu
             model={model}
             kitapAdi={kitapAdi}
@@ -398,7 +395,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
           onModel={setModel}
         />
         <SahneCizelgesi sahneler={oynatici.sahneler} aktif={oynatici.aktif} onSec={oynatici.sahneyeGit} />
-        <div className="relative min-h-0 flex-1 bg-white">
+        <div className="relative isolate min-h-0 flex-1 bg-white">
           <OgretmenSahnesi
             api={api}
             svgRef={katmanRef}
@@ -433,11 +430,8 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
           )}
         </div>
         <AltPanel
-          mesaj={mesaj}
           miniSoru={aktifSahne?.miniSoru ?? null}
           soruBekliyor={oynatici.soruBekliyor}
-          konusuyor={oynatici.konusuyor}
-          yukleniyor={yukleniyor}
           hata={hata}
           onHataKapat={() => setHata(null)}
           gonderiliyor={gonderiliyor}

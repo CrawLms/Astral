@@ -6,7 +6,7 @@ import "server-only";
 export const AI_AYARLARI = {
   baseUrl: "https://api.noxery.net/v1",
   apiKey: "nox-565160dea3276d344adfd28db25c5ddedb40abe9fd643326",
-  varsayilanModel: "gpt-6.1-sol",
+  varsayilanModel: "gpt-6-astra",
   compat: {
     maxTokens: 16384,
     zamanAsimiMs: 280_000,
