@@ -110,7 +110,12 @@ export type SohbetMesaji = {
 export async function sohbetTamamla(model: string, messages: SohbetMesaji[]): Promise<string> {
   const yanit = await apiIstegi("/chat/completions", {
     method: "POST",
-    body: JSON.stringify({ model, messages, max_tokens: AI_AYARLARI.compat.maxTokens }),
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: AI_AYARLARI.compat.maxTokens,
+      reasoning_effort: AI_AYARLARI.reasoningEffort,
+    }),
   });
   const data = await yanit.json().catch(() => null);
   const icerik = data?.choices?.[0]?.message?.content;
@@ -120,21 +125,36 @@ export async function sohbetTamamla(model: string, messages: SohbetMesaji[]): Pr
   return icerik;
 }
 
+// Modelin LaTeX için tek ters bölü yazması ("\cdot", "\underline") JSON'u geçersiz kılar; bu kaçışları onarır.
+function gecersizKacislariOnar(json: string) {
+  return json.replace(/\\([\s\S])/g, (tam, k: string, i: number) => {
+    if ('"\\/bfnrt'.includes(k)) return tam;
+    if (k === "u" && /^[0-9a-fA-F]{4}$/.test(json.slice(i + 2, i + 6))) return tam;
+    return `\\\\${k}`;
+  });
+}
+
+function jsonDene<T>(metin: string): T | undefined {
+  for (const aday of [metin, gecersizKacislariOnar(metin)]) {
+    try {
+      return JSON.parse(aday) as T;
+    } catch {}
+  }
+  return undefined;
+}
+
 export function jsonCikar<T>(metin: string): T {
   const blok = metin.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const temiz = (blok ? blok[1] : metin).trim();
-  try {
-    return JSON.parse(temiz) as T;
-  } catch {
-    const bas = temiz.indexOf("{");
-    const son = temiz.lastIndexOf("}");
-    if (bas !== -1 && son > bas) {
-      try {
-        return JSON.parse(temiz.slice(bas, son + 1)) as T;
-      } catch {}
-    }
-    throw new AiHatasi("Yapay zekâ geçerli bir JSON döndürmedi. Lütfen tekrar deneyin.", 502);
+  const tam = jsonDene<T>(temiz);
+  if (tam !== undefined) return tam;
+  const bas = temiz.indexOf("{");
+  const son = temiz.lastIndexOf("}");
+  if (bas !== -1 && son > bas) {
+    const parca = jsonDene<T>(temiz.slice(bas, son + 1));
+    if (parca !== undefined) return parca;
   }
+  throw new AiHatasi("Yapay zekâ geçerli bir JSON döndürmedi. Lütfen tekrar deneyin.", 502);
 }
 
 export function hataYaniti(hata: unknown, model: string) {

@@ -2,6 +2,7 @@
 
 import katex from "katex";
 import "katex/dist/katex.min.css";
+import { latexKacisOnar } from "@/lib/metin-temizle";
 
 export type HazirGorsel = {
   dataURL: string;
@@ -101,7 +102,13 @@ export async function svgGorseli(hamSvg: string, istenenGenislik?: number): Prom
 }
 
 export async function latexGorseli(latex: string, boyut = 32, renk = "#7048e8"): Promise<HazirGorsel | null> {
-  const html = katex.renderToString(latex, { throwOnError: false, displayMode: true, output: "html", strict: "ignore" });
+  let html: string;
+  try {
+    html = katex.renderToString(latexKacisOnar(latex), { throwOnError: true, displayMode: true, output: "html", strict: "ignore" });
+  } catch {
+    // Hatalı LaTeX'in kırmızı ham kaynağı tahtaya basılmasın; çağıran taraf düz yazıya döner.
+    return null;
+  }
   const kap = document.createElement("div");
   kap.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
   kap.style.cssText = `position:fixed;left:-10000px;top:0;display:inline-block;padding:6px 10px;font-size:${boyut}px;color:${renk};background:transparent;white-space:nowrap;`;

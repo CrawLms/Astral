@@ -7,8 +7,10 @@ export const AI_AYARLARI = {
   baseUrl: "https://api.noxery.net/v1",
   apiKey: "nox-565160dea3276d344adfd28db25c5ddedb40abe9fd643326",
   varsayilanModel: "gpt-6-astra",
+  // gpt-6-astra yalnızca "low" | "medium" | "high" destekler; en kaliteli çizim için en üst mod.
+  reasoningEffort: "high",
   compat: {
-    maxTokens: 16384,
+    maxTokens: 64000,
     zamanAsimiMs: 280_000,
     modelListesiZamanAsimiMs: 20_000,
   },

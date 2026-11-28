@@ -1,4 +1,5 @@
 import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
+import { duzYaziyaCevir, latexKacisOnar } from "@/lib/metin-temizle";
 import type {
   Aksiyon,
   BaglantiOku,
@@ -42,13 +43,33 @@ DİYAGRAM DÜZENİ (geometri_ve_diyagram için ZORUNLU — tahta düzenli ve est
 - Bir nesnenin etiketi/açıklaması DAİMA o nesnenin tam altında, yatayda ortalı olsun: text-anchor='middle' ve x = nesnenin merkez x'i (cx), y = nesnenin alt kenarı + 30. Aynı satırdaki tüm etiketler aynı y değerini kullansın. Yazıyı nesnenin sağına/soluna kaydırma.
 - Ok ve kuvvet etiketleri okun ucuna yakın, oku kesmeyecek şekilde yazılsın; başlık benzeri yazılar üstte ortalı (x=400, text-anchor='middle').
 - Yazılar 18-24 font-size, en fazla ~28 karakter; uzun açıklamayı diyagrama değil formul_ve_not notuna yaz. Yazılar birbirinin ve şekillerin üstüne binmesin.
-- Aynı bloğa sonraki vuruşlarda eklenen parçalar ilk planladığın ızgaraya uysun (ikinci top ilk topun hizasında, etiketi de ilk etiketle aynı y'de).`;
+- Aynı bloğa sonraki vuruşlarda eklenen parçalar ilk planladığın ızgaraya uysun (ikinci top ilk topun hizasında, etiketi de ilk etiketle aynı y'de).
+DİYAGRAM KALİTESİ (geometri_ve_diyagram — çizimler ders kitabı kalitesinde, açıklayıcı ve dolu olmalı):
+- Basit/boş şema çizme. Konunun gerçek parçalarını ayrı ayrı çiz ve etiketle; bir diyagram tüm vuruşlarıyla birlikte genellikle 12-40 öğeden oluşsun. Örnekler: hücre → zar, sitoplazma, çekirdek, çekirdekçik, mitokondri, ribozom, koful; kuvvet diyagramı → cisim, taralı zemin, her kuvvet için ayrı ok ve etiketi; devre → pil (uzun/kısa çizgi), direnç (zikzak), ampul, anahtar, akım yönü oku; üçgen → köşe harfleri, kenar uzunlukları, açı yayları ve dik açı kare işareti.
+- Gerçek oranlara sadık kal. Eğri ve organik şekillerde (organ, yaprak, dalga, yörünge) path içinde Q/C eğrileri kullan; her şeyi dikdörtgenle geçiştirme.
+- Ok çizimi: gövde için <line>, ucunda okun yönüne bakan küçük dolu <polygon> üçgen (yaklaşık 14px). marker, defs, use YASAK (desteklenmez).
+- Parçaları ayırt etmek için açık pastel dolgular kullan: #e7f5ff (mavi), #fff3bf (sarı), #ebfbee (yeşil), #fff0f6 (pembe), #f3f0ff (mor), #fff4e6 (turuncu). Kontur stroke-width 2-3. Vurgulanan parçanın konturu renkli olsun: #e03131, #1971c2, #2f9e44, #7048e8.
+- Yardımcı, ölçü ve izdüşüm çizgilerinde stroke-dasharray='6 6' kullan.
+- Etiket parçadan uzaktaysa parçadan etikete ince bir kılavuz çizgi (stroke-width 1.5) çek; etiketler 1-3 kelime olsun.
+- <text> içine YALNIZCA düz yazı yaz. LaTeX, $, ters bölü komutları (text, frac, vec...), ^{ } ve _{ } YASAK. Üs/indis ve semboller için Unicode kullan: x², v₀, F₁, 30°, Δx, √2, π, ½, ≤, →.
+YAZI ALANLARI: "not", "etiket", "ad", "yonerge", "miniSoru" alanları DÜZ METİNDİR; içlerine LaTeX komutu, $ veya ters bölü yazma, gerekirse Unicode sembol kullan. LaTeX yalnızca formul_ve_not içindeki "latex" alanına yazılır.`;
 
-const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölünür. Öğretmen her vuruşun "soz" cümlesini söylerken AYNI ANDA o vuruşun "aksiyonlar"ını kalemle çizer.
+const OGRETMEN_KIMLIGI = `KİMLİĞİN: Konusuna hâkim, sabırlı, sıcak ve güven veren deneyimli bir Türk öğretmensin. Karşında tek bir öğrenci var; ona doğrudan "sen" diye hitap ederek gerçek bir sınıf öğretmeni gibi ders anlatırsın. Bir yapay zekâ, asistan veya sunucu gibi değil, öğretmen gibi konuşursun.`;
+
+const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölünür. Öğretmen her vuruşun "soz" cümlesini söylerken AYNI ANDA o vuruşun "aksiyonlar"ı tahtada belirir.
 - "id": "v1", "v2"...
-- "soz": öğretmenin tam o an söyleyeceği TEK kısa cümle (en fazla ~20 kelime), konuşma dilinde Türkçe, o an çizilen şeyi anlatsın ("Şimdi Ankara'yı kırmızıyla boyuyorum, burası başkentimiz.").
-- "aksiyonlar": yalnızca o cümleye karşılık gelen 0-2 küçük görsel işlem (bir il, bir ok, bir eğri, bir formül satırı...). Bir sahnenin tüm çizimini tek vuruşa yığma.
-- ÇİZİM SESİN ÖNÜNE GEÇMEZ: bir nesne ancak cümlesi söylenirken belirir. Söylenmeyen şeyi çizme, çizilmeyen şeye "burada gördüğün gibi" deme.`;
+- "soz": öğretmenin o an öğrenciye söylediği 1-2 kısa cümle (toplam en fazla ~30 kelime), doğal konuşma dilinde Türkçe. Söz KONUYU öğretir: kavramı, nedenini, ilişkiyi, sonucu açıklar ve o an tahtada beliren şeyin ne anlama geldiğini anlatır.
+- "aksiyonlar": yalnızca o söze karşılık gelen 0-2 küçük görsel işlem (bir il, bir ok, bir eğri, bir formül satırı...). Bir sahnenin tüm çizimini tek vuruşa yığma.
+- ÇİZİM SESİN ÖNÜNE GEÇMEZ: bir nesne ancak ilgili söz söylenirken belirir. Söylenmeyen şeyi çizme, çizilmeyen şeye "burada gördüğün gibi" deme.
+ÖĞRETMEN GİBİ KONUŞ (ZORUNLU):
+- Kendi eylemini anlatma. "çiziyorum, yazıyorum, boyuyorum, ekliyorum, işaretliyorum, gösteriyorum, koyuyorum, çizeceğim, şimdi şunu yapacağım" gibi ifadeler YASAK. Çizim zaten ekranda kendiliğinden beliriyor; sen yalnızca anlamını öğret.
+  YANLIŞ: "Şimdi Ankara'yı kırmızıyla boyuyorum." → DOĞRU: "Ankara başkentimiz; İç Anadolu'nun tam ortasında yer alır."
+  YANLIŞ: "Formülü tahtaya yazıyorum." → DOĞRU: "Kuvvet, kütle ile ivmenin çarpımıdır; cisim ağırlaştıkça aynı ivme için daha büyük kuvvet gerekir."
+  YANLIŞ: "Bir ok ekliyorum." → DOĞRU: "Sürtünme kuvveti her zaman harekete zıt yönde etki eder."
+- Dikkat çekmek için "Bak", "Dikkat et", "Şuraya odaklan", "Fark ettin mi?" gibi doğal öğretmen dili kullan.
+- Sahne, vuruş, blok, aksiyon, JSON, yapay zekâ, model gibi teknik/meta kelimeleri asla söyleme; "bu sahnede", "bir sonraki adımda şunu çizeceğiz" deme.
+- Gerekçe ver ("çünkü", "bu yüzden"), öğrencinin aklına gelebilecek soruyu önceden yanıtla, ara sıra kısa bir soruyla düşündür, öğrenciyi cesaretlendir.
+- "soz" sesli okunur: içine LaTeX, ters bölü, $, ^ veya _ yazma. Formülü sesli okur gibi yaz ("F eşittir m çarpı a", "x kare artı bir").`;
 
 const CIZIM_STILI = `ÖĞRETMEN ÇİZİM STİLİ (gerçek bir öğretmenin tahtayı kullanma biçimi):
 - Sahne başlığını uygulama OTOMATİK yazar: sadece başlığın tanıtıldığı vuruşta başlık tahtanın ortasına büyük yazılır, ilk çizim gelince başlık yukarı kayar. Bu yüzden başlığı formul_ve_not veya diyagram içinde ASLA tekrar yazma. Sahnenin ilk vuruşu konuyu tanıtıyorsa "aksiyonlar": [] bırak.
@@ -73,7 +94,7 @@ KİTAP METNİNİ AYIKLAMA: Metinde "## " satırları kitabın başlıkları, "�
 
 const GOREV_KURALI = `"miniGorev" (isteğe bağlı, her 2-3 sahnede bir): {"tur":"il_tikla","yonerge":"Haritada Ankara'ya tıkla","dogruPlaka":6} (yalnızca sahnede harita varsa) veya {"tur":"tahtaya_yaz","yonerge":"Sonucu tahtaya yazıp Tahtayla Birlikte Gönder'e bas"}. Yoksa null.`;
 
-const ANLAT_TALIMATI = `Sen sabırlı, net ve sıcak bir Türk öğretmensin. Beyaz tahtada konuşurken eş zamanlı çizerek ders anlatıyorsun.
+const ANLAT_TALIMATI = `${OGRETMEN_KIMLIGI} Beyaz tahtada konuşurken eş zamanlı çizerek ders anlatıyorsun.
 Sana bir ünitenin TAM metni veriliyor. Bu metindeki HER kavramı, tanımı, formülü, örneği ve detayı eksiksiz öğret; özetleyip atlama.
 Anlatımı mantıklı sahnelere böl (4-12 sahne), her sahnede 4-10 vuruş olsun. Her sahne tek bir alt konuya/adıma odaklansın.
 - "baslik": sahnenin kısa başlığı (1-3 kelime)
@@ -86,7 +107,7 @@ ${GORSEL_KURALLARI}
 YALNIZCA şu JSON'u döndür:
 {"sahneler":[{"baslik":"...","miniSoru":null,"miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
 
-const SOKRATIK_ANLAT_TALIMATI = `Sen Sokratik yöntemle öğreten sabırlı bir Türk öğretmensin. Cevabı veya çözümü ASLA doğrudan söyleme ya da tahtaya yazma.
+const SOKRATIK_ANLAT_TALIMATI = `${OGRETMEN_KIMLIGI} Sokratik yöntemle öğretirsin. Cevabı veya çözümü ASLA doğrudan söyleme ya da tahtaya yazma.
 Sana bir ünitenin metni veriliyor. Konuyu 3-8 sahneye böl, her sahnede 3-8 vuruş olsun. Tahtaya yalnızca soruyu, verilenleri, şemayı ve küçük ipuçlarını çiz.
 - "miniSoru" HER sahnede zorunlu: öğrencinin kendi başına çözüp yazarak veya tahtaya çizerek cevaplayacağı soru.
 ${GOREV_KURALI} Haritalı sahnelerde il_tikla görevini tercih et.
@@ -102,7 +123,7 @@ const SORU_ORTAK = `Öğrencinin gönderdiği tahta görüntüsü, öğretmenin 
 Cevabını tahtada canlı çizerek ver: 2-8 vuruşluk "vuruslar" dizisi oluştur. Cevap, dersin şu anki adımından çıkılmadan aynı adım içinde temiz bir tahta yüzeyine çizilir; cevap bitince ders kaldığı yerden devam eder.
 Öğrenci soru fotoğrafı gönderdiyse fotoğraf tahtanın soluna yerleştirilir; sen çözümü yanına adım adım çiz.`;
 
-const SORU_TALIMATI = `Sen sabırlı ve net bir Türk öğretmensin. ${SORU_ORTAK}
+const SORU_TALIMATI = `${OGRETMEN_KIMLIGI} ${SORU_ORTAK}
 Soruyu adım adım çöz ve açıkla: önce verilenleri ve isteneni tahtaya yaz, sonra kullanılacak kuralı/formülü göster, her satırda tek işlem yap, sonucu "sonuc" renginde altı çizili yaz. Son vuruşta yeni soru SORMA; cevabı konuya bağlayan kısa bir geçiş cümlesiyle bitir (ör. "Harika, şimdi anlatmaya devam edelim."), çünkü ders otomatik olarak devam edecek. Öğrenci bir mini soruya cevap veriyorsa doğru olup olmadığını nazikçe söyle ve gerekçesini göster; yanlışsa hatanın tam olarak hangi adımda olduğunu "vurgu" renginde göster.
 ${VURUS_KURALLARI}
 ${CIZIM_STILI}
@@ -110,15 +131,17 @@ ${GORSEL_KURALLARI}
 YALNIZCA şu JSON'u döndür:
 {"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
 
-const SOKRATIK_SORU_TALIMATI = `Sen Sokratik yöntemle öğreten bir Türk öğretmensin. ${SORU_ORTAK}
+const SOKRATIK_SORU_TALIMATI = `${OGRETMEN_KIMLIGI} Sokratik yöntemle öğretirsin. ${SORU_ORTAK}
 Cevabı veya çözümün tamamını ASLA verme. Öğrencinin attığı adımı değerlendir: doğruysa takdir et ve sonraki adımı düşündüren soruyu sor; yanlışsa hatanın nerede olduğunu ipucuyla göster. Son vuruş daima öğrenciye bir soruyla bitsin.
 ${VURUS_KURALLARI}
+${CIZIM_STILI}
 ${GORSEL_KURALLARI}
 YALNIZCA şu JSON'u döndür:
 {"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
 
 const TEST_TALIMATI = `Sen bir Türk öğretmensin. Verilen ünite metninden öğrencinin anlayıp anlamadığını ölçen TAM 3 adet çoktan seçmeli soru hazırla.
 Her sorunun 4 seçeneği olsun, yalnızca biri doğru olsun. Sorular ezber değil kavrama ölçsün.
+Tüm metinler düz yazı olsun: LaTeX, $ veya ters bölü komutu kullanma; üs, kök ve semboller için Unicode yaz (x², √2, π, ≤, 30°).
 YALNIZCA şu JSON'u döndür:
 {"sorular":[{"soru":"...","secenekler":["A","B","C","D"],"dogruIndex":0,"aciklama":"Doğru cevabın kısa gerekçesi"}]}`;
 
@@ -128,6 +151,10 @@ const BOLGELER = new Set<Bolge>(["marmara", "ege", "akdeniz", "ic-anadolu", "kar
 
 const sayi = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : undefined);
 const yazi = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+const duz = (v: unknown, max: number) => {
+  const y = yazi(v, max);
+  return y ? duzYaziyaCevir(y) || undefined : undefined;
+};
 const renk = (v: unknown) => {
   const r = yazi(v, 20);
   return r && /^(#[0-9a-f]{3,8}|[a-z]+)$/i.test(r) ? r : undefined;
@@ -156,6 +183,7 @@ function svgTemizle(ham: unknown) {
 }
 
 function yaziyaCevir(latex: string) {
+  latex = latexKacisOnar(latex);
   const metinler = [...latex.matchAll(/\\(?:text|textbf|mathrm)\{([^{}]*)\}/g)].map((m) => m[1]);
   const kalan = latex.replace(/\\(?:text|textbf|mathrm)\{[^{}]*\}/g, "").replace(/[\s=:,.\-]|\\[,;!]|\\quad/g, "");
   const duzYazi = !/[\\^_{}]/.test(latex) && /\p{L}{3,}\s+\p{L}{3,}/u.test(latex);
@@ -184,13 +212,13 @@ function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
         gorsel,
         vurgulananIller: dizi<VurgulananIl>(h.vurgulananIller, 20, (x) => {
           const p = plaka(x.plaka);
-          return p ? { plaka: p, ad: yazi(x.ad, 30) ?? "", renk: renk(x.renk) ?? "vurgu", etiket: yazi(x.etiket, 40) } : undefined;
+          return p ? { plaka: p, ad: duz(x.ad, 30) ?? "", renk: renk(x.renk) ?? "vurgu", etiket: duz(x.etiket, 40) } : undefined;
         }),
         bolgeRenkleri,
         baglantiOklari: dizi<BaglantiOku>(h.baglantiOklari, 10, (x) => {
           const a = plaka(x.neredenPlaka);
           const b = plaka(x.nereyePlaka);
-          return a && b && a !== b ? { neredenPlaka: a, nereyePlaka: b, etiket: yazi(x.etiket, 30) } : undefined;
+          return a && b && a !== b ? { neredenPlaka: a, nereyePlaka: b, etiket: duz(x.etiket, 30) } : undefined;
         }),
       };
     }
@@ -202,12 +230,12 @@ function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
         yAralik: aralik(h.yAralik),
         fonksiyonlar: dizi<GrafikFonksiyonu>(h.fonksiyonlar, 4, (x) => {
           const ifade = yazi(x.ifade, 200);
-          return ifade ? { ifade, renk: renk(x.renk) ?? "baslik", etiket: yazi(x.etiket, 30) } : undefined;
+          return ifade ? { ifade, renk: renk(x.renk) ?? "baslik", etiket: duz(x.etiket, 30) } : undefined;
         }),
         noktalar: dizi<GrafikNoktasi>(h.noktalar, 8, (x) => {
           const nx = sayi(x.x);
           const ny = sayi(x.y);
-          return nx !== undefined && ny !== undefined ? { x: nx, y: ny, etiket: yazi(x.etiket, 30) ?? "" } : undefined;
+          return nx !== undefined && ny !== undefined ? { x: nx, y: ny, etiket: duz(x.etiket, 30) ?? "" } : undefined;
         }),
       };
     case "geometri_ve_diyagram": {
@@ -216,10 +244,10 @@ function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
     }
     case "formul_ve_not": {
       const hamLatex = yazi(h.latex, 600);
-      const hamNot = yazi(h.not, 160);
+      const hamNot = duz(h.not, 160);
       const temizNot = hamNot && !RENK_ANAHTARLARI.has(hamNot.toLocaleLowerCase("tr")) ? hamNot : undefined;
       const latexMetni = hamLatex ? yaziyaCevir(hamLatex) : undefined;
-      const latex = latexMetni ? undefined : hamLatex;
+      const latex = latexMetni || !hamLatex ? undefined : latexKacisOnar(hamLatex) || undefined;
       const not = latexMetni ? [latexMetni, temizNot].filter(Boolean).join(" — ").slice(0, 200) : temizNot;
       return latex || not ? { tip: "formul_ve_not", gorsel, latex, not, renk: renk(h.renk), altiCizili: h.altiCizili === true } : undefined;
     }
@@ -230,13 +258,36 @@ function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
   }
 }
 
+const EYLEM_FIILI =
+  /(?<!\p{L})(?:çiz|yaz|boy|ekl|işaretl|göster|koy|çek|bağl|yerleştir|taral|vurgul|boya|ekle|işaretle|bağla)(?:iyorum|ıyorum|uyorum|üyorum|yorum|eceğim|yeceğim|acağım|yacağım|iyoruz|ıyoruz|uyoruz|üyoruz)(?!\p{L})/iu;
+
+const buyukBasla = (m: string) => (m ? m.charAt(0).toLocaleUpperCase("tr") + m.slice(1) : m);
+
+// Öğretmenin "Şimdi Ankara'yı boyuyorum, burası başkentimiz." gibi kendi eylemini anlatan kısımlarını ayıklar.
+function eylemAnlatiminiAyikla(soz: string) {
+  const cumleler = soz.match(/[^.!?…]+[.!?…]*/g)?.map((c) => c.trim()).filter(Boolean) ?? [];
+  const kalan = cumleler.flatMap((cumle) => {
+    if (!EYLEM_FIILI.test(cumle)) return [cumle];
+    const son = cumle.match(/[.!?…]+$/)?.[0] ?? ".";
+    const govde = cumle.slice(0, cumle.length - (cumle.match(/[.!?…]+$/)?.[0].length ?? 0));
+    const yan = govde.split(/\s*[,;:—–]\s*/).filter((p) => p && !EYLEM_FIILI.test(p));
+    const metin = yan.join(", ").replace(/^(?:ve|ama|sonra|şimdi|ardından|böylece)\s+/iu, "").trim();
+    return metin.split(/\s+/).length >= 2 ? [buyukBasla(metin) + son] : [];
+  });
+  return kalan.length ? kalan.join(" ") : soz;
+}
+
+function sozTemizle(ham: string) {
+  return eylemAnlatiminiAyikla(duzYaziyaCevir(ham.trim()).replace(/\s+/g, " ").trim());
+}
+
 function vuruslariTemizle(ham: unknown): Vurus[] {
   if (!Array.isArray(ham)) return [];
   return ham
     .filter((v) => v && typeof v === "object")
     .map((v, i) => ({
       id: yazi(v.id, 20) ?? `v${i + 1}`,
-      soz: String(v.soz ?? v.konusmaMetni ?? "").trim().slice(0, 400),
+      soz: sozTemizle(String(v.soz ?? v.konusmaMetni ?? "")).slice(0, 400),
       aksiyonlar: dizi(v.aksiyonlar, 4, aksiyonTemizle),
     }))
     .filter((v) => v.soz || v.aksiyonlar.length)
@@ -246,7 +297,7 @@ function vuruslariTemizle(ham: unknown): Vurus[] {
 function gorevTemizle(ham: unknown): MiniGorev | null {
   if (!ham || typeof ham !== "object") return null;
   const g = ham as Record<string, unknown>;
-  const yonerge = yazi(g.yonerge, 200);
+  const yonerge = duz(g.yonerge, 200);
   if (!yonerge) return null;
   if (g.tur === "il_tikla") {
     const p = plaka(g.dogruPlaka);
@@ -282,7 +333,7 @@ function sahneleriTemizle(ham: unknown): Sahne[] {
       if (miniGorev?.tur === "il_tikla" && !haritaVar) miniGorev = null;
       return {
         baslik: String(s.baslik ?? "").trim().slice(0, 60) || "Sahne",
-        miniSoru: yazi(s.miniSoru, 300) ?? null,
+        miniSoru: duz(s.miniSoru, 300) ?? null,
         miniGorev,
         vuruslar,
       };
@@ -295,13 +346,13 @@ function sorulariTemizle(ham: unknown): TestSorusu[] {
   return ham
     .filter((s) => s && typeof s === "object" && typeof s.soru === "string" && Array.isArray(s.secenekler))
     .map((s) => {
-      const secenekler = s.secenekler.map((x: unknown) => String(x)).slice(0, 5);
+      const secenekler = s.secenekler.map((x: unknown) => duzYaziyaCevir(String(x))).slice(0, 5);
       const dogru = sayi(s.dogruIndex) ?? 0;
       return {
-        soru: s.soru.trim(),
+        soru: duzYaziyaCevir(s.soru.trim()),
         secenekler,
         dogruIndex: Math.max(0, Math.min(secenekler.length - 1, Math.round(dogru))),
-        aciklama: String(s.aciklama ?? "").trim(),
+        aciklama: duzYaziyaCevir(String(s.aciklama ?? "").trim()),
       };
     })
     .filter((s) => s.secenekler.length >= 2)
@@ -386,7 +437,7 @@ export async function POST(req: Request) {
         },
       ]);
       const veri = jsonCikar<{ aciklama?: string; vuruslar?: unknown }>(text);
-      const aciklama = String(veri.aciklama ?? "").trim() || "Bunu birlikte inceleyelim.";
+      const aciklama = duzYaziyaCevir(String(veri.aciklama ?? "").trim()) || "Bunu birlikte inceleyelim.";
       let vuruslar = vuruslariTemizle(veri.vuruslar);
       if (vuruslar.length === 0) vuruslar = [{ id: "v1", soz: aciklama, aksiyonlar: [] }];
       return Response.json({ aciklama, vuruslar });
