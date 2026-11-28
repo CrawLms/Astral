@@ -61,6 +61,7 @@ DİYAGRAM ANİMASYONU (hareket, değişim veya süreç anlatılırken KULLAN —
   · 'don': data-merkez etrafında sürekli döner (çark, gezegen yörüngesi, elektron; yörüngede dönme için merkez = yörüngenin merkezi). data-yon='-1' ters yön.
   · 'nabiz': yerinde büyüyüp küçülür (kalp atışı, vurgulanan sonuç, patlama noktası).
   · 'akis': çizginin üzerinde akan kesikli desen oluşturur; akım yönü, kan/su/hava akışı, enerji aktarımı için tel veya boru çizgisine (ya da onları içeren <g>'ye) ekle. data-yon='-1' akışı ters çevirir.
+- 'kay' ve 'yol' hareketlerinde nesnenin başlangıç konumunda soluk bir izi otomatik kalır; başlangıç ve bitiş için ayrı ayrı nesne çizme, tek hareketli nesne yeter. Hareketli nesnenin etiketi gruba dahil olsun ki onunla birlikte gitsin; sabit kalması gereken yazıları (ör. "zemin", "h = 20 m") grubun DIŞINA yaz.
 - Ortak: data-sure saniye (varsayılan 1-4), data-gecikme saniye, data-tekrar='1' sadece bir kez oynatır ve sonda bırakır (varsayılan sürekli tekrar).
 - Hareket bittiğinde nesne x 40-760, y 40-420 içinde kalsın. Bir diyagramda en fazla 2-3 hareketli grup olsun; durağan kavramları (tanımlar, tablolar, geometri ispatı) canlandırma.
 - Örnek: <g data-anim='kay' data-dx='300' data-dy='0' data-ivme='hizlan'><circle cx='180' cy='300' r='30' fill='#e7f5ff' stroke='#1971c2'/><text x='180' y='360' text-anchor='middle' font-size='20'>m</text></g>
