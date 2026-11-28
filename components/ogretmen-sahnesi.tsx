@@ -775,19 +775,27 @@ function viewBoxCoz(vb: string) {
 
 function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
   const vb = viewBoxCoz(viewBox);
+  const grupAnahtari = (li: number, o: DiyagramOgesi) => (o.hareket ? `${li}:${o.hareket.grup}` : "");
   const sekiller = parcalar
-    .flat()
-    .filter((o): o is Extract<DiyagramOgesi, { tur: "sekil" }> => o.tur === "sekil" && o.kapali && !o.donusum && Boolean(o.sinir))
-    .map((o) => o.sinir as Sinir)
-    .filter((s) => s.x1 - s.x0 < vb.w * 0.45 && s.y1 - s.y0 < vb.h * 0.6);
-  const yazilar = parcalar.flat().filter((o): o is Extract<DiyagramOgesi, { tur: "yazi" }> => o.tur === "yazi" && !o.donusum);
+    .flatMap((liste, li) =>
+      liste
+        .filter((o): o is Extract<DiyagramOgesi, { tur: "sekil" }> => o.tur === "sekil" && o.kapali && !o.donusum && Boolean(o.sinir))
+        .map((o) => ({ s: o.sinir as Sinir, g: grupAnahtari(li, o) })),
+    )
+    .filter(({ s }) => s.x1 - s.x0 < vb.w * 0.45 && s.y1 - s.y0 < vb.h * 0.6);
+  const etiketler = parcalar.flatMap((liste, li) =>
+    liste
+      .filter((o): o is Extract<DiyagramOgesi, { tur: "yazi" }> => o.tur === "yazi" && !o.donusum)
+      .map((t) => ({ t, g: grupAnahtari(li, t) })),
+  );
 
-  for (const t of yazilar) {
+  for (const { t, g } of etiketler) {
     const ts = yaziSiniri(t);
     const tcx = (ts.x0 + ts.x1) / 2;
     const tcy = (ts.y0 + ts.y1) / 2;
     let enIyi: { s: Sinir; konum: "alt" | "ust" | "ic"; mesafe: number } | null = null;
-    for (const s of sekiller) {
+    for (const { s, g: sekilGrubu } of sekiller) {
+      if (sekilGrubu !== g) continue;
       const yatayOrtusme = ts.x1 > s.x0 - 50 && ts.x0 < s.x1 + 50;
       if (!yatayOrtusme) continue;
       const scx = (s.x0 + s.x1) / 2;
@@ -806,16 +814,20 @@ function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
     if (konum === "ust" && t.y + t.boyut * 0.3 > s.y0 - 8) t.y = s.y0 - 8 - t.boyut * 0.3;
   }
 
-  const sirali = [...yazilar].sort((a, b) => a.y - b.y);
-  for (let i = 0; i < sirali.length; ) {
-    let j = i + 1;
-    while (j < sirali.length && sirali[j].y - sirali[i].y < 16) j++;
-    if (j - i > 1) {
-      const grup = sirali.slice(i, j);
-      const ortY = grup.reduce((t, o) => t + o.y, 0) / grup.length;
-      grup.forEach((o) => (o.y = ortY));
+  const hareketGruplari = new Map<string, Extract<DiyagramOgesi, { tur: "yazi" }>[]>();
+  for (const { t, g } of etiketler) hareketGruplari.set(g, [...(hareketGruplari.get(g) ?? []), t]);
+  for (const yazilar of hareketGruplari.values()) {
+    const sirali = [...yazilar].sort((a, b) => a.y - b.y);
+    for (let i = 0; i < sirali.length; ) {
+      let j = i + 1;
+      while (j < sirali.length && sirali[j].y - sirali[i].y < 16) j++;
+      if (j - i > 1) {
+        const grup = sirali.slice(i, j);
+        const ortY = grup.reduce((t, o) => t + o.y, 0) / grup.length;
+        grup.forEach((o) => (o.y = ortY));
+      }
+      i = j;
     }
-    i = j;
   }
 
   const donusumluVar = parcalar.flat().some((o) => o.donusum);
@@ -1171,10 +1183,18 @@ function Canlandirici({
       </g>
     );
   }
+  const tasinan = h.tur === "kay" || h.tur === "yol";
+  const izGoster = aktif && tasinan && !azHareket();
   return (
     <g ref={ref}>
-      {anim}
-      {children}
+      {izGoster && <g opacity={0.18}>{children}</g>}
+      <g>
+        {anim}
+        {izGoster && bekleyerek && (
+          <animate {...ortak} attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.05;0.88;0.97;1" dur={gidisSuresi} />
+        )}
+        {children}
+      </g>
     </g>
   );
 }
