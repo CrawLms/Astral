@@ -1,6 +1,18 @@
 "use client";
 
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import rough from "roughjs";
 import type { Drawable, Options } from "roughjs/bin/core";
 import { cities } from "turkey-map-react/data";
@@ -99,9 +111,28 @@ const parcaIlerlemesi = (p: number, sira: number, toplam: number) => sinirla(p *
 
 type Parca<T extends Aksiyon = Aksiyon> = { aksiyon: T; p: number };
 
-function Cizgi({ d, renk, kalinlik = 2, p, dolgu, kesikli }: { d: string; renk: string; kalinlik?: number; p: number; dolgu?: string; kesikli?: boolean }) {
+type Akis = { sure: number; yon: 1 | -1; gecikme: number };
+
+function Cizgi({
+  d,
+  renk,
+  kalinlik = 2,
+  p,
+  dolgu,
+  kesikli,
+  akis,
+}: {
+  d: string;
+  renk: string;
+  kalinlik?: number;
+  p: number;
+  dolgu?: string;
+  kesikli?: boolean;
+  akis?: Akis;
+}) {
   if (p <= 0) return null;
   const animasyon = p < 1;
+  const akiyor = Boolean(akis && !animasyon && !dolgu);
   return (
     <path
       d={d}
@@ -111,22 +142,28 @@ function Cizgi({ d, renk, kalinlik = 2, p, dolgu, kesikli }: { d: string; renk: 
       strokeLinecap="round"
       strokeLinejoin="round"
       pathLength={animasyon && !kesikli ? 1 : undefined}
-      strokeDasharray={kesikli ? "6 6" : animasyon ? "1 1" : undefined}
+      strokeDasharray={akiyor ? "10 8" : kesikli ? "6 6" : animasyon ? "1 1" : undefined}
       strokeDashoffset={animasyon && !kesikli ? 1 - p : undefined}
-      opacity={kesikli ? p : undefined}
+      opacity={kesikli && !akiyor ? p : undefined}
       data-kalem={animasyon ? "" : undefined}
       data-p={animasyon ? p : undefined}
-    />
+    >
+      {akiyor && akis && !azHareket() && (
+        <animate attributeName="stroke-dashoffset" values={akis.yon < 0 ? "0;36" : "0;-36"} dur={`${akis.sure}s`} begin={`${akis.gecikme}s`} repeatCount="indefinite" />
+      )}
+    </path>
   );
 }
 
-function Kaba({ cizim, p, kesikli }: { cizim: Drawable; p: number; kesikli?: boolean }) {
+const azHareket = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function Kaba({ cizim, p, kesikli, akis }: { cizim: Drawable; p: number; kesikli?: boolean; akis?: Akis }) {
   const yollar = useMemo(() => gen.toPaths(cizim), [cizim]);
   return (
     <g>
       {yollar.map((y, i) => {
         const dolgu = y.fill && y.fill !== "none" ? y.fill : undefined;
-        return <Cizgi key={i} d={y.d} renk={y.stroke} kalinlik={y.strokeWidth} dolgu={dolgu} p={p} kesikli={kesikli && !dolgu} />;
+        return <Cizgi key={i} d={y.d} renk={y.stroke} kalinlik={y.strokeWidth} dolgu={dolgu} p={p} kesikli={kesikli && !dolgu} akis={akis} />;
       })}
     </g>
   );
@@ -503,9 +540,144 @@ const RENK_DESENI = /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\))$/i;
 const DONUSUM_DESENI = /^[a-z0-9\s(),.\-]+$/i;
 const YOL_DESENI = /^[MmLlHhVvCcSsQqTtAaZz\d\s.,\-eE]+$/;
 
+type HareketTuru = "kay" | "gidipgel" | "yol" | "don" | "salin" | "nabiz";
+type Ivme = "sabit" | "hizlan" | "yavasla" | "yumusak";
+
+type Canlandirma = {
+  tur: HareketTuru;
+  dx: number;
+  dy: number;
+  yol?: string;
+  yolSinir: Sinir | null;
+  merkez?: [number, number];
+  aci: number;
+  sure: number;
+  gecikme: number;
+  tekrar: boolean;
+  ivme: Ivme;
+  yonelim: boolean;
+  yon: 1 | -1;
+};
+
+type GrupHareketi = { spec: Canlandirma; grup: number };
+
+const VARSAYILAN_SURE: Record<HareketTuru, number> = { kay: 2.5, gidipgel: 1.6, yol: 3, don: 4, salin: 2, nabiz: 1.2 };
+
+function animOku(el: Element): { hareket?: Canlandirma; akis?: Akis } | null {
+  const tur = el.getAttribute("data-anim")?.trim().toLowerCase();
+  if (!tur) return null;
+  const deger = (ad: string, v: number, min: number, max: number) => {
+    const n = parseFloat(el.getAttribute(ad) ?? "");
+    return aralikta(Number.isFinite(n) ? n : v, min, max);
+  };
+  const yon = el.getAttribute("data-yon")?.trim() === "-1" ? -1 : 1;
+  const gecikme = deger("data-gecikme", 0, 0, 10);
+  if (tur === "akis") return { akis: { sure: deger("data-sure", 1, 0.2, 10), yon, gecikme } };
+  if (!(tur in VARSAYILAN_SURE)) return null;
+  const t = tur as HareketTuru;
+  const dx = deger("data-dx", 0, -2000, 2000);
+  const dy = deger("data-dy", 0, -2000, 2000);
+  if ((t === "kay" || t === "gidipgel") && !dx && !dy) return null;
+  const yolHam = el.getAttribute("data-yol")?.trim() ?? "";
+  const yol = yolHam && yolHam.length < 2000 && YOL_DESENI.test(yolHam) ? yolHam : undefined;
+  if (t === "yol" && !yol) return null;
+  const m = (el.getAttribute("data-merkez") ?? "").split(/[\s,]+/).filter(Boolean).map(Number);
+  const ivme = el.getAttribute("data-ivme")?.trim();
+  return {
+    hareket: {
+      tur: t,
+      dx,
+      dy,
+      yol,
+      yolSinir: yol ? cizimSiniri(gen.path(yol, { roughness: 0 })) : null,
+      merkez: m.length === 2 && m.every(Number.isFinite) ? [m[0], m[1]] : undefined,
+      aci: deger("data-aci", 25, 1, 90),
+      sure: deger("data-sure", VARSAYILAN_SURE[t], 0.3, 20),
+      gecikme,
+      tekrar: el.getAttribute("data-tekrar")?.trim() !== "1",
+      ivme: ivme === "sabit" || ivme === "hizlan" || ivme === "yavasla" ? ivme : "yumusak",
+      yonelim: el.getAttribute("data-yonelim")?.trim() === "evet",
+      yon,
+    },
+  };
+}
+
 type DiyagramOgesi =
-  | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; kesikli: boolean; sinir: Sinir | null }
-  | { tur: "yazi"; x: number; y: number; metin: string; boyut: number; ozgunBoyut: number; renk: string; hizala: Hizalama; donusum?: string };
+  | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; kesikli: boolean; sinir: Sinir | null; hareket?: GrupHareketi; akis?: Akis }
+  | {
+      tur: "yazi";
+      x: number;
+      y: number;
+      metin: string;
+      boyut: number;
+      ozgunBoyut: number;
+      renk: string;
+      hizala: Hizalama;
+      donusum?: string;
+      hareket?: GrupHareketi;
+    };
+
+const birlestir = (a: Sinir, b: Sinir): Sinir => ({
+  x0: Math.min(a.x0, b.x0),
+  y0: Math.min(a.y0, b.y0),
+  x1: Math.max(a.x1, b.x1),
+  y1: Math.max(a.y1, b.y1),
+});
+
+function ogeSiniri(o: DiyagramOgesi): Sinir | null {
+  return o.tur === "yazi" ? yaziSiniri(o) : o.sinir;
+}
+
+function grupSinirlari(ogeler: DiyagramOgesi[]) {
+  const m = new Map<number, Sinir>();
+  for (const o of ogeler) {
+    const s = o.hareket ? ogeSiniri(o) : null;
+    if (!o.hareket || !s) continue;
+    const onceki = m.get(o.hareket.grup);
+    m.set(o.hareket.grup, onceki ? birlestir(onceki, s) : s);
+  }
+  return m;
+}
+
+function hareketMerkezi(h: Canlandirma, s: Sinir): [number, number] {
+  if (h.merkez) return h.merkez;
+  const cx = (s.x0 + s.x1) / 2;
+  return h.tur === "salin" ? [cx, s.y0] : [cx, (s.y0 + s.y1) / 2];
+}
+
+function dondur(x: number, y: number, mx: number, my: number, derece: number): [number, number] {
+  const r = (derece * Math.PI) / 180;
+  const c = Math.cos(r);
+  const s = Math.sin(r);
+  return [mx + (x - mx) * c - (y - my) * s, my + (x - mx) * s + (y - my) * c];
+}
+
+function hareketKapsami(s: Sinir, h: Canlandirma, [mx, my]: [number, number]): Sinir {
+  const koseler: [number, number][] = [
+    [s.x0, s.y0],
+    [s.x1, s.y0],
+    [s.x0, s.y1],
+    [s.x1, s.y1],
+  ];
+  const noktalardan = (n: [number, number][]) => n.reduce<Sinir>((a, [x, y]) => birlestir(a, { x0: x, y0: y, x1: x, y1: y }), s);
+  switch (h.tur) {
+    case "kay":
+    case "gidipgel":
+      return birlestir(s, { x0: s.x0 + h.dx, y0: s.y0 + h.dy, x1: s.x1 + h.dx, y1: s.y1 + h.dy });
+    case "yol":
+      return h.yolSinir
+        ? birlestir(s, { x0: s.x0 + h.yolSinir.x0, y0: s.y0 + h.yolSinir.y0, x1: s.x1 + h.yolSinir.x1, y1: s.y1 + h.yolSinir.y1 })
+        : s;
+    case "nabiz":
+      return noktalardan(koseler.map(([x, y]) => [mx + (x - mx) * 1.15, my + (y - my) * 1.15]));
+    case "don": {
+      const r = Math.max(...koseler.map(([x, y]) => Math.hypot(x - mx, y - my)));
+      return birlestir(s, { x0: mx - r, y0: my - r, x1: mx + r, y1: my + r });
+    }
+    case "salin":
+      return noktalardan(koseler.flatMap(([x, y]) => [dondur(x, y, mx, my, h.aci), dondur(x, y, mx, my, -h.aci)]));
+  }
+}
 
 type Matris = [number, number, number, number, number, number];
 
@@ -651,14 +823,18 @@ function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
   let y0 = donusumluVar ? vb.y : Infinity;
   let x1 = donusumluVar ? vb.x + vb.w : -Infinity;
   let y1 = donusumluVar ? vb.y + vb.h : -Infinity;
-  for (const o of parcalar.flat()) {
-    if (o.donusum) continue;
-    const s = o.tur === "yazi" ? yaziSiniri(o) : o.sinir;
-    if (!s) continue;
-    x0 = Math.min(x0, s.x0 - 24);
-    y0 = Math.min(y0, s.y0 - 24);
-    x1 = Math.max(x1, s.x1 + 24);
-    y1 = Math.max(y1, s.y1 + 24);
+  for (const liste of parcalar) {
+    const gruplar = grupSinirlari(liste);
+    for (const o of liste) {
+      if (o.donusum) continue;
+      let s = ogeSiniri(o);
+      if (!s) continue;
+      if (o.hareket) s = hareketKapsami(s, o.hareket.spec, hareketMerkezi(o.hareket.spec, gruplar.get(o.hareket.grup) ?? s));
+      x0 = Math.min(x0, s.x0 - 24);
+      y0 = Math.min(y0, s.y0 - 24);
+      x1 = Math.max(x1, s.x1 + 24);
+      y1 = Math.max(y1, s.y1 + 24);
+    }
   }
   if (!Number.isFinite(x0)) return viewBox;
   return `${x0} ${y0} ${x1 - x0} ${y1 - y0}`;
@@ -686,7 +862,8 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
       .map(Number)
       .reduce<[number, number][]>((acc, v, i, a) => (i % 2 === 0 && Number.isFinite(v) && Number.isFinite(a[i + 1]) ? [...acc, [v, a[i + 1]]] : acc), []);
 
-  const gez = (el: Element, ustDonusum: string, ustRenk?: string, ustDolgu?: string) => {
+  let grupSayaci = 0;
+  const gez = (el: Element, ustDonusum: string, ustRenk?: string, ustDolgu?: string, ustHareket?: GrupHareketi, ustAkis?: Akis) => {
     for (const cocuk of Array.from(el.children)) {
       const ad = cocuk.nodeName.toLowerCase();
       if (!IZINLI.has(ad) || ogeler.length > 120) continue;
@@ -694,8 +871,11 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
       const donusum = [ustDonusum, t && DONUSUM_DESENI.test(t) ? t : ""].filter(Boolean).join(" ");
       const stroke = renkAl(cocuk, "stroke") ?? ustRenk;
       const fill = renkAl(cocuk, "fill") ?? ustDolgu;
+      const anim = animOku(cocuk);
+      const hareket = ustHareket ?? (anim?.hareket ? { spec: anim.hareket, grup: grupSayaci++ } : undefined);
+      const akis = anim?.akis ?? ustAkis;
       if (ad === "g") {
-        gez(cocuk, donusum, stroke, fill);
+        gez(cocuk, donusum, stroke, fill, hareket, akis);
         continue;
       }
       const matris = donusum ? donusumMatrisi(donusum) : null;
@@ -728,6 +908,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
           renk: fill && fill !== "none" ? fill : "#1e1e1e",
           hizala: anchor === "middle" || anchor === "end" ? anchor : "start",
           donusum: yaziDonusumu,
+          hareket,
         });
         continue;
       }
@@ -737,7 +918,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         roughness: 0.55,
         bowing: 0.45,
         preserveVertices: true,
-        disableMultiStroke: kesikli,
+        disableMultiStroke: kesikli || Boolean(akis),
         stroke: stroke && stroke !== "none" ? stroke : "#1e1e1e",
         strokeWidth: Math.max(1, Math.min(6, sayi(cocuk, "stroke-width", 2.4))),
         fill: fill && fill !== "none" && fill !== "transparent" ? fill : undefined,
@@ -758,7 +939,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         const kapali = ad === "rect" || ad === "circle" || ad === "ellipse" || ad === "polygon";
         const sonCizim = matris ? cizimDonustur(cizim, matris) : cizim;
         const sekilDonusumu = matris ? undefined : donusum || undefined;
-        ogeler.push({ tur: "sekil", cizim: sonCizim, donusum: sekilDonusumu, kapali, kesikli, sinir: cizimSiniri(sonCizim) });
+        ogeler.push({ tur: "sekil", cizim: sonCizim, donusum: sekilDonusumu, kapali, kesikli, sinir: cizimSiniri(sonCizim), hareket, akis });
       }
     }
   };
@@ -810,24 +991,191 @@ function DiyagramBlok({
   kutu: Blok["kutu"];
 }) {
   const svgAnahtari = tumSvgler.join("\u0000");
-  const { cozumler, viewBox } = useMemo(() => {
+  const { cozumler, viewBox, gruplar } = useMemo(() => {
     const c = svgAnahtari.split("\u0000").map((svg, i) => diyagramCoz(svg, `${blokId}-${i}`));
-    return { cozumler: c, viewBox: diyagramHazirla(c.map((x) => x.ogeler), c[0]?.viewBox ?? VARSAYILAN_VB, kutu.w, kutu.h) };
+    const vb = diyagramHazirla(c.map((x) => x.ogeler), c[0]?.viewBox ?? VARSAYILAN_VB, kutu.w, kutu.h);
+    return { cozumler: c, viewBox: vb, gruplar: c.map((x) => grupSinirlari(x.ogeler)) };
   }, [blokId, svgAnahtari, kutu.w, kutu.h]);
   return (
     <svg viewBox={viewBox} preserveAspectRatio="xMidYMin meet" overflow="hidden">
-      {cozumler.slice(0, parcalar.length).map((c, ai) =>
-        c.ogeler.map((o, j) => {
-          const p = parcaIlerlemesi(parcalar[ai].p, j, c.ogeler.length);
+      {cozumler.slice(0, parcalar.length).map((c, ai) => {
+        const ilerleme = c.ogeler.map((_, j) => parcaIlerlemesi(parcalar[ai].p, j, c.ogeler.length));
+        const ogeCiz = (o: DiyagramOgesi, j: number) => {
+          const p = ilerleme[j];
           if (p <= 0) return null;
           return (
             <g key={`${ai}-${j}`} transform={o.donusum}>
-              {o.tur === "sekil" ? <Kaba cizim={o.cizim} p={p} kesikli={o.kesikli} /> : <Yazi x={o.x} y={o.y} metin={o.metin} boyut={o.boyut} renk={o.renk} hizala={o.hizala} p={p} />}
+              {o.tur === "sekil" ? (
+                <Kaba cizim={o.cizim} p={p} kesikli={o.kesikli} akis={o.akis} />
+              ) : (
+                <Yazi x={o.x} y={o.y} metin={o.metin} boyut={o.boyut} renk={o.renk} hizala={o.hizala} p={p} />
+              )}
             </g>
           );
-        }),
-      )}
+        };
+        const dugumler: ReactNode[] = [];
+        for (let j = 0; j < c.ogeler.length; ) {
+          const h = c.ogeler[j].hareket;
+          if (!h) {
+            dugumler.push(ogeCiz(c.ogeler[j], j));
+            j++;
+            continue;
+          }
+          let k = j;
+          while (k < c.ogeler.length && c.ogeler[k].hareket?.grup === h.grup) k++;
+          const sinir = gruplar[ai].get(h.grup);
+          if (ilerleme[j] > 0 && sinir) {
+            dugumler.push(
+              <Canlandirici key={`${ai}-h${h.grup}`} hareket={h.spec} merkez={hareketMerkezi(h.spec, sinir)} aktif={ilerleme[k - 1] >= 1}>
+                {c.ogeler.slice(j, k).map((o, i) => ogeCiz(o, j + i))}
+              </Canlandirici>,
+            );
+          }
+          j = k;
+        }
+        return <Fragment key={ai}>{dugumler}</Fragment>;
+      })}
     </svg>
+  );
+}
+
+const EGRILER: Record<Ivme, string> = {
+  sabit: "0 0 1 1",
+  hizlan: "0.55 0 1 0.45",
+  yavasla: "0 0.55 0.45 1",
+  yumusak: "0.45 0 0.55 1",
+};
+
+function Canlandirici({
+  hareket: h,
+  merkez: [mx, my],
+  aktif,
+  children,
+}: {
+  hareket: Canlandirma;
+  merkez: [number, number];
+  aktif: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<SVGGElement>(null);
+  useEffect(() => {
+    if (!aktif || azHareket()) return;
+    ref.current?.querySelectorAll<SVGAnimationElement>("[data-canlandir]").forEach((a) => a.beginElementAt(h.gecikme));
+  }, [aktif, h.gecikme]);
+
+  const tekrarSayisi = h.tekrar ? "indefinite" : "1";
+  const egri = EGRILER[h.ivme];
+  const ortak = { "data-canlandir": "", begin: "indefinite", repeatCount: tekrarSayisi, fill: "freeze" as const };
+  const bekleyerek = h.tekrar;
+  const gidisSuresi = `${bekleyerek ? h.sure / 0.8 : h.sure}s`;
+
+  let anim: ReactNode = null;
+  if (aktif) {
+    switch (h.tur) {
+      case "kay":
+        anim = (
+          <animateTransform
+            {...ortak}
+            attributeName="transform"
+            type="translate"
+            values={bekleyerek ? `0 0;${h.dx} ${h.dy};${h.dx} ${h.dy}` : `0 0;${h.dx} ${h.dy}`}
+            keyTimes={bekleyerek ? "0;0.8;1" : "0;1"}
+            keySplines={bekleyerek ? `${egri};0 0 1 1` : egri}
+            calcMode="spline"
+            dur={gidisSuresi}
+          />
+        );
+        break;
+      case "gidipgel":
+        anim = (
+          <animateTransform
+            {...ortak}
+            attributeName="transform"
+            type="translate"
+            values={`0 0;${h.dx} ${h.dy};0 0`}
+            keyTimes="0;0.5;1"
+            keySplines={`${EGRILER.yumusak};${EGRILER.yumusak}`}
+            calcMode="spline"
+            dur={`${h.sure}s`}
+          />
+        );
+        break;
+      case "yol":
+        anim = (
+          <animateMotion
+            {...ortak}
+            path={h.yol}
+            rotate={h.yonelim ? "auto" : "0"}
+            keyPoints={bekleyerek ? "0;1;1" : "0;1"}
+            keyTimes={bekleyerek ? "0;0.8;1" : "0;1"}
+            keySplines={bekleyerek ? `${egri};0 0 1 1` : egri}
+            calcMode="spline"
+            dur={gidisSuresi}
+          />
+        );
+        break;
+      case "don":
+        anim = (
+          <animateTransform
+            {...ortak}
+            attributeName="transform"
+            type="rotate"
+            values={`0 ${mx} ${my};${360 * h.yon} ${mx} ${my}`}
+            calcMode="linear"
+            dur={`${h.sure}s`}
+          />
+        );
+        break;
+      case "salin": {
+        const a = h.aci * h.yon;
+        anim = (
+          <animateTransform
+            {...ortak}
+            attributeName="transform"
+            type="rotate"
+            values={`0 ${mx} ${my};${a} ${mx} ${my};0 ${mx} ${my};${-a} ${mx} ${my};0 ${mx} ${my}`}
+            keyTimes="0;0.25;0.5;0.75;1"
+            keySplines={[EGRILER.yavasla, EGRILER.hizlan, EGRILER.yavasla, EGRILER.hizlan].join(";")}
+            calcMode="spline"
+            dur={`${h.sure}s`}
+          />
+        );
+        break;
+      }
+      case "nabiz":
+        anim = (
+          <animateTransform
+            {...ortak}
+            attributeName="transform"
+            type="scale"
+            values="1;1.15;1"
+            keyTimes="0;0.5;1"
+            keySplines={`${EGRILER.yumusak};${EGRILER.yumusak}`}
+            calcMode="spline"
+            dur={`${h.sure}s`}
+          />
+        );
+        break;
+    }
+  }
+
+  if (h.tur === "nabiz") {
+    return (
+      <g ref={ref}>
+        <g transform={`translate(${mx} ${my})`}>
+          <g>
+            {anim}
+            <g transform={`translate(${-mx} ${-my})`}>{children}</g>
+          </g>
+        </g>
+      </g>
+    );
+  }
+  return (
+    <g ref={ref}>
+      {anim}
+      {children}
+    </g>
   );
 }
 

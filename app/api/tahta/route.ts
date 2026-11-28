@@ -51,6 +51,19 @@ DİYAGRAM KALİTESİ (geometri_ve_diyagram — çizimler ders kitabı kalitesind
 - Parçaları ayırt etmek için açık pastel dolgular kullan: #e7f5ff (mavi), #fff3bf (sarı), #ebfbee (yeşil), #fff0f6 (pembe), #f3f0ff (mor), #fff4e6 (turuncu). Kontur stroke-width 2-3. Vurgulanan parçanın konturu renkli olsun: #e03131, #1971c2, #2f9e44, #7048e8.
 - Yardımcı, ölçü ve izdüşüm çizgilerinde stroke-dasharray='6 6' kullan.
 - Etiket parçadan uzaktaysa parçadan etikete ince bir kılavuz çizgi (stroke-width 1.5) çek; etiketler 1-3 kelime olsun.
+DİYAGRAM ANİMASYONU (hareket, değişim veya süreç anlatılırken KULLAN — ok tek başına yetmez, nesnenin kendisi hareket etsin):
+- Hareket eden nesneyi (top, araba, elektron, gezegen, sarkaç, kan hücresi...) ve ona ait etiketi tek bir <g> içine al ve <g>'ye data-anim ekle. Grup, çizimi bittiği anda canlanır; bu yüzden hareketli nesneyi hareketin anlatıldığı vuruşta çiz, önceki vuruşta aynı nesneyi durağan çizip tekrar çizme. Yön okunu ve yolu (kesikli çizgi) yine durağan çiz; nesne okun gösterdiği yönde hareket etsin.
+- data-anim türleri:
+  · 'kay': data-dx, data-dy kadar kayar (ör. top okun ucuna gider). İsteğe bağlı data-ivme='hizlan' (serbest düşme, kuvvet etkisinde hızlanma), 'yavasla' (sürtünmeyle durma), 'sabit' (sabit hız).
+  · 'yol': data-yol boyunca ilerler; yol nesnenin bulunduğu yerden başlayan GÖRELİ bir path'tir ve 'M0 0' ile başlar (ör. eğik atış: data-yol='M0 0 Q180 -220 360 0'). data-yonelim='evet' nesneyi yola göre döndürür (araba, roket).
+  · 'gidipgel': data-dx/data-dy kadar gidip geri gelir (yay, piston, titreşen tanecik, dalga).
+  · 'salin': data-merkez='x y' asılma noktası etrafında ±data-aci derece sallanır (sarkaç, salıncak). Asılma ipi de gruba dahil olsun.
+  · 'don': data-merkez etrafında sürekli döner (çark, gezegen yörüngesi, elektron; yörüngede dönme için merkez = yörüngenin merkezi). data-yon='-1' ters yön.
+  · 'nabiz': yerinde büyüyüp küçülür (kalp atışı, vurgulanan sonuç, patlama noktası).
+  · 'akis': çizginin üzerinde akan kesikli desen oluşturur; akım yönü, kan/su/hava akışı, enerji aktarımı için tel veya boru çizgisine (ya da onları içeren <g>'ye) ekle. data-yon='-1' akışı ters çevirir.
+- Ortak: data-sure saniye (varsayılan 1-4), data-gecikme saniye, data-tekrar='1' sadece bir kez oynatır ve sonda bırakır (varsayılan sürekli tekrar).
+- Hareket bittiğinde nesne x 40-760, y 40-420 içinde kalsın. Bir diyagramda en fazla 2-3 hareketli grup olsun; durağan kavramları (tanımlar, tablolar, geometri ispatı) canlandırma.
+- Örnek: <g data-anim='kay' data-dx='300' data-dy='0' data-ivme='hizlan'><circle cx='180' cy='300' r='30' fill='#e7f5ff' stroke='#1971c2'/><text x='180' y='360' text-anchor='middle' font-size='20'>m</text></g>
 - <text> içine YALNIZCA düz yazı yaz. LaTeX, $, ters bölü komutları (text, frac, vec...), ^{ } ve _{ } YASAK. Üs/indis ve semboller için Unicode kullan: x², v₀, F₁, 30°, Δx, √2, π, ½, ≤, →.
 YAZI ALANLARI: "not", "etiket", "ad", "yonerge", "miniSoru" alanları DÜZ METİNDİR; içlerine LaTeX komutu, $ veya ters bölü yazma, gerekirse Unicode sembol kullan. LaTeX yalnızca formul_ve_not içindeki "latex" alanına yazılır.`;
 
