@@ -379,16 +379,115 @@ const RENK_DESENI = /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\))$/i;
 const DONUSUM_DESENI = /^[a-z0-9\s(),.\-]+$/i;
 const YOL_DESENI = /^[MmLlHhVvCcSsQqTtAaZz\d\s.,\-eE]+$/;
 
+type Sinir = { x0: number; y0: number; x1: number; y1: number };
+
 type DiyagramOgesi =
-  | { tur: "sekil"; cizim: Drawable; donusum?: string }
+  | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; sinir: Sinir | null }
   | { tur: "yazi"; x: number; y: number; metin: string; boyut: number; renk: string; hizala: "start" | "middle" | "end"; donusum?: string };
+
+const VARSAYILAN_VB = "0 0 800 460";
+
+function cizimSiniri(c: Drawable): Sinir | null {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const set of c.sets) {
+    for (const op of set.ops) {
+      for (let i = 0; i + 1 < op.data.length; i += 2) {
+        const x = op.data[i];
+        const y = op.data[i + 1];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        x0 = Math.min(x0, x);
+        y0 = Math.min(y0, y);
+        x1 = Math.max(x1, x);
+        y1 = Math.max(y1, y);
+      }
+    }
+  }
+  return Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
+}
+
+const yaziGenisligi = (metin: string, boyut: number) => metin.length * boyut * 0.56;
+
+function yaziSiniri(o: Extract<DiyagramOgesi, { tur: "yazi" }>): Sinir {
+  const w = yaziGenisligi(o.metin, o.boyut);
+  const x0 = o.hizala === "middle" ? o.x - w / 2 : o.hizala === "end" ? o.x - w : o.x;
+  return { x0, y0: o.y - o.boyut * 0.9, x1: x0 + w, y1: o.y + o.boyut * 0.3 };
+}
+
+function viewBoxCoz(vb: string) {
+  const [x, y, w, h] = vb.split(/[\s,]+/).map(Number);
+  return { x, y, w, h };
+}
+
+function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
+  const vb = viewBoxCoz(viewBox);
+  const sekiller = parcalar
+    .flat()
+    .filter((o): o is Extract<DiyagramOgesi, { tur: "sekil" }> => o.tur === "sekil" && o.kapali && !o.donusum && Boolean(o.sinir))
+    .map((o) => o.sinir as Sinir)
+    .filter((s) => s.x1 - s.x0 < vb.w * 0.45 && s.y1 - s.y0 < vb.h * 0.6);
+  const yazilar = parcalar.flat().filter((o): o is Extract<DiyagramOgesi, { tur: "yazi" }> => o.tur === "yazi" && !o.donusum);
+
+  for (const t of yazilar) {
+    const ts = yaziSiniri(t);
+    const tcx = (ts.x0 + ts.x1) / 2;
+    const tcy = (ts.y0 + ts.y1) / 2;
+    let enIyi: { s: Sinir; konum: "alt" | "ust" | "ic"; mesafe: number } | null = null;
+    for (const s of sekiller) {
+      const yatayOrtusme = ts.x1 > s.x0 - 50 && ts.x0 < s.x1 + 50;
+      if (!yatayOrtusme) continue;
+      const scx = (s.x0 + s.x1) / 2;
+      const yatayMesafe = Math.abs(tcx - scx);
+      let aday: { konum: "alt" | "ust" | "ic"; mesafe: number } | null = null;
+      if (tcx > s.x0 && tcx < s.x1 && tcy > s.y0 && tcy < s.y1) aday = { konum: "ic", mesafe: 0 };
+      else if (ts.y0 >= s.y1 - 8 && ts.y0 - s.y1 < 70) aday = { konum: "alt", mesafe: ts.y0 - s.y1 + yatayMesafe * 0.3 };
+      else if (ts.y1 <= s.y0 + 8 && s.y0 - ts.y1 < 50) aday = { konum: "ust", mesafe: s.y0 - ts.y1 + yatayMesafe * 0.3 };
+      if (aday && (!enIyi || aday.mesafe < enIyi.mesafe)) enIyi = { s, ...aday };
+    }
+    if (!enIyi) continue;
+    const { s, konum } = enIyi;
+    t.x = (s.x0 + s.x1) / 2;
+    t.hizala = "middle";
+    if (konum === "alt" && t.y - t.boyut * 0.9 < s.y1 + 8) t.y = s.y1 + 8 + t.boyut * 0.9;
+    if (konum === "ust" && t.y + t.boyut * 0.3 > s.y0 - 8) t.y = s.y0 - 8 - t.boyut * 0.3;
+  }
+
+  const sirali = [...yazilar].sort((a, b) => a.y - b.y);
+  for (let i = 0; i < sirali.length; ) {
+    let j = i + 1;
+    while (j < sirali.length && sirali[j].y - sirali[i].y < 16) j++;
+    if (j - i > 1) {
+      const grup = sirali.slice(i, j);
+      const ortY = grup.reduce((t, o) => t + o.y, 0) / grup.length;
+      grup.forEach((o) => (o.y = ortY));
+    }
+    i = j;
+  }
+
+  let x0 = vb.x;
+  let y0 = vb.y;
+  let x1 = vb.x + vb.w;
+  let y1 = vb.y + vb.h;
+  for (const o of parcalar.flat()) {
+    if (o.donusum) continue;
+    const s = o.tur === "yazi" ? yaziSiniri(o) : o.sinir;
+    if (!s) continue;
+    x0 = Math.min(x0, s.x0 - 12);
+    y0 = Math.min(y0, s.y0 - 12);
+    x1 = Math.max(x1, s.x1 + 12);
+    y1 = Math.max(y1, s.y1 + 12);
+  }
+  return `${x0} ${y0} ${x1 - x0} ${y1 - y0}`;
+}
 
 function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: DiyagramOgesi[] } {
   const belge = new DOMParser().parseFromString(svg, "image/svg+xml");
   const kok = belge.documentElement;
-  if (kok.nodeName.toLowerCase() !== "svg" || belge.querySelector("parsererror")) return { viewBox: "0 0 800 460", ogeler: [] };
+  if (kok.nodeName.toLowerCase() !== "svg" || belge.querySelector("parsererror")) return { viewBox: VARSAYILAN_VB, ogeler: [] };
   const vb = kok.getAttribute("viewBox")?.trim() ?? "";
-  const viewBox = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(vb) ? vb : "0 0 800 460";
+  const viewBox = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(vb) && viewBoxCoz(vb).w > 0 && viewBoxCoz(vb).h > 0 ? vb : VARSAYILAN_VB;
   const ogeler: DiyagramOgesi[] = [];
   const sayi = (el: Element, ad: string, v = 0) => {
     const n = parseFloat(el.getAttribute(ad) ?? "");
@@ -418,7 +517,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         continue;
       }
       if (ad === "text") {
-        const metin = cocuk.textContent?.trim().slice(0, 80);
+        const metin = cocuk.textContent?.trim().replace(/\s+/g, " ").slice(0, 80);
         if (!metin) continue;
         const anchor = cocuk.getAttribute("text-anchor");
         const x = sayi(cocuk, "x");
@@ -461,22 +560,25 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         const d = cocuk.getAttribute("d")?.trim() ?? "";
         if (d && d.length < 6000 && YOL_DESENI.test(d)) cizim = gen.path(d, o);
       }
-      if (cizim) ogeler.push({ tur: "sekil", cizim, donusum: donusum || undefined });
+      if (cizim) {
+        const kapali = ad === "rect" || ad === "circle" || ad === "ellipse" || ad === "polygon";
+        ogeler.push({ tur: "sekil", cizim, donusum: donusum || undefined, kapali, sinir: cizimSiniri(cizim) });
+      }
     }
   };
   gez(kok, "");
   return { viewBox, ogeler };
 }
 
-function DiyagramBlok({ parcalar, blokId }: { parcalar: Parca<DiyagramAksiyonu>[]; blokId: string }) {
-  const svgAnahtari = parcalar.map((x) => x.aksiyon.svg).join("\u0000");
-  const cozumler = useMemo(
-    () => svgAnahtari.split("\u0000").map((svg, i) => diyagramCoz(svg, `${blokId}-${i}`)),
-    [blokId, svgAnahtari],
-  );
+function DiyagramBlok({ parcalar, tumSvgler, blokId }: { parcalar: Parca<DiyagramAksiyonu>[]; tumSvgler: string[]; blokId: string }) {
+  const svgAnahtari = tumSvgler.join("\u0000");
+  const { cozumler, viewBox } = useMemo(() => {
+    const c = svgAnahtari.split("\u0000").map((svg, i) => diyagramCoz(svg, `${blokId}-${i}`));
+    return { cozumler: c, viewBox: diyagramDuzenle(c.map((x) => x.ogeler), c[0]?.viewBox ?? VARSAYILAN_VB) };
+  }, [blokId, svgAnahtari]);
   return (
-    <svg viewBox={cozumler[0]?.viewBox ?? "0 0 800 460"} preserveAspectRatio="xMidYMid meet" overflow="visible">
-      {cozumler.map((c, ai) =>
+    <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" overflow="hidden">
+      {cozumler.slice(0, parcalar.length).map((c, ai) =>
         c.ogeler.map((o, j) => {
           const p = parcaIlerlemesi(parcalar[ai].p, j, c.ogeler.length);
           if (p <= 0) return null;
@@ -518,18 +620,60 @@ function useLatex(latex: string | undefined, renk: string) {
   return sonuc?.anahtar === anahtar ? sonuc.g : null;
 }
 
-function FormulSatiri({ aksiyon, p, y, genislik, yukseklikBildir }: { aksiyon: FormulAksiyonu; p: number; y: number; genislik: number; yukseklikBildir: number }) {
+const NOT_BOYUT = 19;
+const NOT_SATIR = 27;
+const LATEX_H = 60;
+const SATIR_BOSLUK = 18;
+
+function satirlaraBol(metin: string, genislik: number, boyut: number) {
+  const maks = Math.max(8, Math.floor((genislik - 24) / (boyut * 0.56)));
+  const satirlar: string[] = [];
+  let mevcut = "";
+  for (const kelime of metin.split(/\s+/).filter(Boolean)) {
+    if (!mevcut) mevcut = kelime;
+    else if ((mevcut + " " + kelime).length <= maks) mevcut += " " + kelime;
+    else {
+      satirlar.push(mevcut);
+      mevcut = kelime;
+    }
+  }
+  if (mevcut) satirlar.push(mevcut);
+  return satirlar;
+}
+
+function formulDuzeni(aksiyonlar: FormulAksiyonu[], kutuW: number, kutuH: number) {
+  const hesapla = (w: number) => {
+    let y = 6;
+    const satirlar = aksiyonlar.map((a) => {
+      const notlar = a.not ? satirlaraBol(a.not, w, NOT_BOYUT) : [];
+      const satir = { y, notlar };
+      y += (a.latex ? LATEX_H + 12 : 0) + notlar.length * NOT_SATIR + SATIR_BOSLUK;
+      return satir;
+    });
+    return { satirlar, h: y };
+  };
+  let w = kutuW;
+  let sonuc = hesapla(w);
+  for (let i = 0; i < 3 && sonuc.h > kutuH; i++) {
+    w = (kutuW * sonuc.h) / kutuH;
+    sonuc = hesapla(w);
+  }
+  return { ...sonuc, w, h: Math.max(kutuH, sonuc.h, (w * kutuH) / kutuW) };
+}
+
+function FormulSatiri({ aksiyon, p, y, genislik, notlar }: { aksiyon: FormulAksiyonu; p: number; y: number; genislik: number; notlar: string[] }) {
   const renk = renkCoz(aksiyon.renk, "#7048e8");
   const g = useLatex(aksiyon.latex, renk);
   const id = `f${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const olcek = g ? Math.min(1, (genislik - 24) / g.genislik, 64 / g.yukseklik) : 1;
+  const olcek = g ? Math.min(1, (genislik - 24) / g.genislik, LATEX_H / g.yukseklik) : 1;
   const fw = g ? g.genislik * olcek : 0;
   const fh = g ? g.yukseklik * olcek : 0;
   const latexP = aksiyon.not ? sinirla(p * 1.6) : p;
-  const notY = y + (aksiyon.latex ? Math.max(fh, 40) + 26 : 26);
+  const notP = aksiyon.latex ? sinirla((p - 0.55) * 2.2) : p;
+  const notY = y + (aksiyon.latex ? LATEX_H + 12 : 0) + NOT_BOYUT + 2;
   const cizgiY = y + Math.max(fh, 40) + 4;
   return (
-    <g data-satir={yukseklikBildir}>
+    <g>
       {aksiyon.latex && g && (
         <g>
           <clipPath id={id}>
@@ -543,20 +687,29 @@ function FormulSatiri({ aksiyon, p, y, genislik, yukseklikBildir }: { aksiyon: F
         </g>
       )}
       {aksiyon.latex && !g && p > 0 && <Yazi x={12} y={y + 30} metin={aksiyon.latex} boyut={18} renk={renk} p={latexP} />}
-      {aksiyon.not && (
-        <Yazi x={12} y={notY} metin={aksiyon.not} boyut={19} renk={aksiyon.latex ? "#1e1e1e" : renk} p={aksiyon.latex ? sinirla((p - 0.55) * 2.2) : p} />
-      )}
+      {notlar.map((satir, k) => (
+        <Yazi
+          key={k}
+          x={12}
+          y={notY + k * NOT_SATIR}
+          metin={satir}
+          boyut={NOT_BOYUT}
+          renk={aksiyon.latex ? "#1e1e1e" : renk}
+          p={parcaIlerlemesi(notP, k, notlar.length)}
+        />
+      ))}
     </g>
   );
 }
 
-function FormulBlok({ parcalar, kutu }: { parcalar: Parca<FormulAksiyonu>[]; kutu: Blok["kutu"] }) {
-  const satirH = Math.max(56, Math.min(120, kutu.h / Math.max(1, parcalar.length)));
+function FormulBlok({ parcalar, tumAksiyonlar, kutu }: { parcalar: Parca<FormulAksiyonu>[]; tumAksiyonlar: FormulAksiyonu[]; kutu: Blok["kutu"] }) {
+  const duzen = useMemo(() => formulDuzeni(tumAksiyonlar, kutu.w, kutu.h), [tumAksiyonlar, kutu.w, kutu.h]);
   return (
-    <svg viewBox={`0 0 ${kutu.w} ${kutu.h}`} overflow="visible">
+    <svg viewBox={`0 0 ${duzen.w} ${duzen.h}`} preserveAspectRatio="xMinYMin meet" overflow="hidden">
       {parcalar.map((x, i) => {
-        const y = 8 + i * satirH;
-        return <FormulSatiri key={i} aksiyon={x.aksiyon} p={x.p} y={y} genislik={kutu.w} yukseklikBildir={satirH} />;
+        const satir = duzen.satirlar[i];
+        if (!satir) return null;
+        return <FormulSatiri key={i} aksiyon={x.aksiyon} p={x.p} y={satir.y} genislik={duzen.w} notlar={satir.notlar} />;
       })}
     </svg>
   );
@@ -589,12 +742,35 @@ type SahneProps = {
 
 const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilTiklama }: SahneProps) {
   const bloklar = useMemo(() => yerlesim(sahne), [sahne]);
+  const tumAksiyonlar = useMemo(() => {
+    const m = new Map<string, Aksiyon[]>();
+    for (const v of sahne.vuruslar) {
+      for (const a of v.aksiyonlar) {
+        if (a.tip === "vurgula") continue;
+        m.set(a.gorsel, [...(m.get(a.gorsel) ?? []), a]);
+      }
+    }
+    return m;
+  }, [sahne]);
   const parcalar = aksiyonParcalari(sahne, vurusSira, p);
-  const baslikCizgi = useMemo(() => gen.line(0, 50, Math.min(ALAN_W, 40 + sahne.baslik.length * 17), 54, { seed: tohum(sahne.baslik), stroke: "#1971c2", strokeWidth: 2.5, roughness: 1.1 }), [sahne.baslik]);
+  const baslikMetni = sahne.ek ? sahne.baslik : `${sira + 1}. ${sahne.baslik}`;
+  const baslikBoyut = Math.min(30, (ALAN_W - 20) / Math.max(1, baslikMetni.length * 0.56));
+  const baslikCizgi = useMemo(
+    () => gen.line(0, 50, Math.min(ALAN_W, 40 + baslikMetni.length * baslikBoyut * 0.56), 54, { seed: tohum(sahne.baslik), stroke: "#1971c2", strokeWidth: 2.5, roughness: 1.1 }),
+    [sahne.baslik, baslikMetni, baslikBoyut],
+  );
+  const kirpId = `t${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
     <g transform={`translate(0 ${alanY(sira)})`}>
-      <rect x={-24} y={-14} width={ALAN_W + 48} height={ALAN_H + 28} rx={18} fill="#ffffff" stroke="#e9ecef" strokeWidth={2} strokeDasharray="10 8" />
-      <Yazi x={0} y={38} metin={sahne.ek ? sahne.baslik : `${sira + 1}. ${sahne.baslik}`} boyut={30} renk="#1971c2" p={1} />
+      <defs>
+        <clipPath id={kirpId}>
+          <rect x={-20} y={-10} width={ALAN_W + 40} height={ALAN_H + 20} rx={14} />
+        </clipPath>
+      </defs>
+      <rect x={-24} y={-14} width={ALAN_W + 48} height={ALAN_H + 28} rx={18} fill="#ffffff" stroke="#adb5bd" strokeWidth={3} />
+      <rect x={-18} y={-8} width={ALAN_W + 36} height={ALAN_H + 16} rx={13} fill="none" stroke="#e9ecef" strokeWidth={1.5} />
+      <g clipPath={`url(#${kirpId})`}>
+      <Yazi x={0} y={38} metin={baslikMetni} boyut={baslikBoyut} renk="#1971c2" p={1} />
       <Kaba cizim={baslikCizgi} p={1} />
       {[...bloklar.values()].map((b) => {
         if (b.tip === "fotograf") {
@@ -612,9 +788,17 @@ const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilT
           ) : b.tip === "matematik_grafigi" ? (
             <GrafikBlok parcalar={liste as Parca<GrafikAksiyonu>[]} blokId={`${sira}-${b.id}`} />
           ) : b.tip === "geometri_ve_diyagram" ? (
-            <DiyagramBlok parcalar={liste as Parca<DiyagramAksiyonu>[]} blokId={`${sira}-${b.id}`} />
+            <DiyagramBlok
+              parcalar={liste as Parca<DiyagramAksiyonu>[]}
+              tumSvgler={((tumAksiyonlar.get(b.id) ?? []) as DiyagramAksiyonu[]).map((a) => a.svg)}
+              blokId={`${sira}-${b.id}`}
+            />
           ) : (
-            <FormulBlok parcalar={liste as Parca<FormulAksiyonu>[]} kutu={b.kutu} />
+            <FormulBlok
+              parcalar={liste as Parca<FormulAksiyonu>[]}
+              tumAksiyonlar={(tumAksiyonlar.get(b.id) ?? []) as FormulAksiyonu[]}
+              kutu={b.kutu}
+            />
           );
         return (
           <svg key={b.id} data-blok={b.id} x={b.kutu.x} y={b.kutu.y} width={b.kutu.w} height={b.kutu.h} overflow="visible">
@@ -622,6 +806,7 @@ const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilT
           </svg>
         );
       })}
+      </g>
     </g>
   );
 });

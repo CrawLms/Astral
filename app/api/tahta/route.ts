@@ -35,7 +35,14 @@ const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ÇOK ÖNEMLİ):
 4) {"tip":"formul_ve_not","gorsel":"f1","latex":"F = m \\\\cdot a","not":"kısa el yazısı not","renk":"formul","altiCizili":true}
    → formül (KaTeX sözdizimi, JSON'da ters bölüyü \\\\ olarak kaçır) ve/veya kısa not satırı. Her aksiyon bloğa bir satır ekler.
 5) {"tip":"vurgula","gorsel":"h1"} → daha önce çizilmiş bloğu lazer halkasıyla gösterir.
-Renkler: "#hex" veya "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı), "sonuc" (yeşil), "normal" (siyah).`;
+Renkler: "#hex" veya "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı), "sonuc" (yeşil), "normal" (siyah).
+DİYAGRAM DÜZENİ (geometri_ve_diyagram için ZORUNLU — tahta düzenli ve estetik görünmeli):
+- Her şey viewBox içinde kalsın: tüm şekil ve yazılar x 40-760, y 40-420 arasında olsun; kenara yapışma, dışarı taşma.
+- Önce ızgara planla: karşılaştırılan nesneleri (ör. iki top, iki kap, önce/sonra) EŞİT aralıklı sütunlara yerleştir — 2 nesne için merkezler x=240 ve x=560, 3 nesne için x=160, 400, 640. Hepsi aynı y merkezinde ve aynı boyutta olsun.
+- Bir nesnenin etiketi/açıklaması DAİMA o nesnenin tam altında, yatayda ortalı olsun: text-anchor='middle' ve x = nesnenin merkez x'i (cx), y = nesnenin alt kenarı + 30. Aynı satırdaki tüm etiketler aynı y değerini kullansın. Yazıyı nesnenin sağına/soluna kaydırma.
+- Ok ve kuvvet etiketleri okun ucuna yakın, oku kesmeyecek şekilde yazılsın; başlık benzeri yazılar üstte ortalı (x=400, text-anchor='middle').
+- Yazılar 18-24 font-size, en fazla ~28 karakter; uzun açıklamayı diyagrama değil formul_ve_not notuna yaz. Yazılar birbirinin ve şekillerin üstüne binmesin.
+- Aynı bloğa sonraki vuruşlarda eklenen parçalar ilk planladığın ızgaraya uysun (ikinci top ilk topun hizasında, etiketi de ilk etiketle aynı y'de).`;
 
 const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölünür. Öğretmen her vuruşun "soz" cümlesini söylerken AYNI ANDA o vuruşun "aksiyonlar"ını kalemle çizer.
 - "id": "v1", "v2"...
@@ -48,7 +55,8 @@ const CIZIM_STILI = `ÖĞRETMEN ÇİZİM STİLİ (gerçek bir öğretmenin tahta
 - Renk kodlaması tutarlı olsun: yeni terim/tanım "baslik", formül "formul", dikkat/tuzak/sık hata "vurgu", sonuç/cevap "sonuc", ara adımlar "normal". Aynı kavram ders boyunca hep aynı renkte kalsın.
 - Bir vuruşta tek fikir: bir formül satırı, bir okun eklenmesi, bir değerin yerine konması. Çözümü satır satır, her satırda tek işlem yaparak yaz; ara adımı atlama.
 - Kavramlar arasındaki ilişkiyi diyagramla göster (akış, neden-sonuç, karşılaştırma tablosu, zaman çizelgesi); karar noktalarını ayrı kutu/elmas olarak çiz.
-- Önemli yere dönerken "vurgula" aksiyonunu kullan; sonucu "sonuc" renginde ve altı çizili yaz.`;
+- Önemli yere dönerken "vurgula" aksiyonunu kullan; sonucu "sonuc" renginde ve altı çizili yaz.
+- Tahtanın sınırları vardır: bir sahneye sığmayacak kadar çok şey yazma. Bir formul_ve_not bloğunda en fazla 6 satır olsun, notlar kısa (en fazla ~12 kelime) tutulsun; fazlası için yeni sahneye geç.`;
 
 const PEDAGOJI = `ANLATIM AKIŞI (Astra AI tarzı yapılandırılmış ders):
 1) Kanca: günlük hayattan merak uyandıran bir soru/örnekle başla ve dersin hedefini tek cümlede söyle.
