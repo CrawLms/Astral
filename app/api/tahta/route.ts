@@ -53,6 +53,7 @@ import type {
   ZamanCizelgesiYon,
   ZamanOlayi,
 } from "@/lib/types";
+import { gorselKimlikleriniAyir } from "@/lib/types";
 
 export const maxDuration = 300;
 
@@ -116,7 +117,7 @@ YAZI ALANLARI: "not", "etiket", "altEtiket", "ad", "baslik", "aciklama", "satirl
 
 const YARATICI_TAHTA = `YARATICI TAHTA ANLATIMI (HER DERSTE ZORUNLU):
 - Her ders görselleştirilir. Sözel derslerde de (edebiyat, tarih, felsefe, din, dil bilgisi, yabancı dil) asla yalnızca yazıyla anlatma; her ana fikrin tahtada bir görsel karşılığı olsun.
-- Tahtayı boş bırakma: vuruşların en az üçte ikisinde tahtaya bir şey eklensin; her sahnede en az bir ana görsel blok (turkiye_haritasi, matematik_grafigi, geometri, akis_semasi, zaman_cizelgesi, tablo, hazir_sahne veya son çare geometri_ve_diyagram) olsun. Sahneyi yalnızca formul_ve_not ile geçirme.
+- Tahtayı boş bırakma: sahnenin konuyu tanıtan ilk vuruşu hariç HER vuruşta en az bir aksiyon olsun (yeni parça, satır, düğüm, olay, not veya vurgula). "Bak", "gördüğün gibi", "burada", "tahtada" diyorsan o anda tahtada gerçekten bir çizim olmalı. Her aksiyonun "tip" ve "gorsel" alanını mutlaka yaz; farklı tipteki bloklara AYNI "gorsel" kimliğini verme (ör. geometri "geo1", not "f1"). Her sahnede en az bir ana görsel blok (turkiye_haritasi, matematik_grafigi, geometri, akis_semasi, zaman_cizelgesi, tablo, hazir_sahne veya son çare geometri_ve_diyagram) olsun. Sahneyi yalnızca formul_ve_not ile geçirme.
 - Adım adım kur: aynı "gorsel" kimliğine sonraki vuruşlarda yeni nokta, yükseklik, düğüm, olay, satır veya SVG katmanı ekleyerek resmi anlatımla birlikte büyüt.
 - Soyutu yapısal şablonlarla somutlaştır: karşıtlık için terazi, hiyerarşi için piramit, ortak/farklı özellikler için venn, süreç/neden-sonuç için akis_semasi, dönemler için zaman_cizelgesi, kıyas için tablo, somut simgeler için ikon_izgarasi (merdiven, kopru, kalkan, disli, ampul, kitap...) kullan.
 - Yalnızca yapısal bloklara sığmayan özel anlatımlarda (ör. şiir kafiye/ölçü işaretleme, cümle ögeleri, konuşma balonlu diyalog) son çare geometri_ve_diyagram seç:
@@ -936,8 +937,87 @@ function hazirSahneTemizle(h: Record<string, unknown>, gorsel: string): HazirSah
   }
 }
 
-function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
-  const gorsel = yazi(h.gorsel, 30) ?? "b1";
+const SABLON_ADLARI = new Set([
+  "egik_duzlem",
+  "elektrik_devresi",
+  "optik_duzenek",
+  "kuvvet_dengesi",
+  "atom_modeli",
+  "tepkime_kabi",
+  "hucre_kesiti",
+  "terazi",
+  "piramit",
+  "venn",
+  "ikon_izgarasi",
+]);
+
+const TIP_ESLESME: Record<string, string> = {
+  harita: "turkiye_haritasi",
+  turkiye: "turkiye_haritasi",
+  turkiye_harita: "turkiye_haritasi",
+  grafik: "matematik_grafigi",
+  fonksiyon_grafigi: "matematik_grafigi",
+  matematik_grafik: "matematik_grafigi",
+  geometrik_sekil: "geometri",
+  geometri_cizimi: "geometri",
+  akis: "akis_semasi",
+  akis_diyagrami: "akis_semasi",
+  kavram_haritasi: "akis_semasi",
+  sema: "akis_semasi",
+  zaman: "zaman_cizelgesi",
+  zaman_cizgisi: "zaman_cizelgesi",
+  kronoloji: "zaman_cizelgesi",
+  karsilastirma_tablosu: "tablo",
+  tablo_aksiyonu: "tablo",
+  sablon: "hazir_sahne",
+  hazir_sablon: "hazir_sahne",
+  diyagram: "geometri_ve_diyagram",
+  svg: "geometri_ve_diyagram",
+  cizim: "geometri_ve_diyagram",
+  formul: "formul_ve_not",
+  not: "formul_ve_not",
+  yazi: "formul_ve_not",
+  metin: "formul_ve_not",
+  formul_not: "formul_ve_not",
+  vurgu: "vurgula",
+};
+
+const IC_ICE_ANAHTARLAR = ["veri", "parametreler", "params", "ozellikler", "data", "icerik", "ayarlar"] as const;
+
+// Modelin farklı biçimde yazdığı aksiyonları (ör. "type", "tip":"egik_duzlem", parametrelerin "veri" içinde
+// gelmesi) standart biçime çevirir; aksi hâlde bu aksiyonlar tamamen siliniyor ve tahta boş kalıyordu.
+function aksiyonNormallestir(ham: Record<string, unknown>): Record<string, unknown> {
+  let h: Record<string, unknown> = { ...ham };
+  for (const anahtar of IC_ICE_ANAHTARLAR) {
+    const ic = nesne(h[anahtar]);
+    if (ic) h = { ...ic, ...h, [anahtar]: undefined };
+  }
+  const hamTip = yazi(h.tip ?? h.type ?? h.gorselTipi, 50);
+  if (hamTip) {
+    const n = asciiKucuk(hamTip).replace(/[\s-]+/g, "_");
+    if (SABLON_ADLARI.has(n)) {
+      h.tip = "hazir_sahne";
+      if (!yazi(h.sablon, 40)) h.sablon = n;
+    } else {
+      h.tip = TIP_ESLESME[n] ?? n;
+    }
+  } else if (yazi(h.sablon, 40)) {
+    h.tip = "hazir_sahne";
+  } else if (typeof h.svg === "string") {
+    h.tip = "geometri_ve_diyagram";
+  } else if (yazi(h.latex, 600) || yazi(h.not, 160)) {
+    h.tip = "formul_ve_not";
+  }
+  if (!yazi(h.gorsel, 30)) {
+    const alternatif = yazi(h.blok ?? h.id ?? h.gorselId, 30);
+    if (alternatif) h.gorsel = alternatif;
+  }
+  return h;
+}
+
+function aksiyonTemizle(ham: Record<string, unknown>): Aksiyon | undefined {
+  const h = aksiyonNormallestir(ham);
+  const gorsel = yazi(h.gorsel, 30) ?? (typeof h.tip === "string" ? `b_${h.tip}` : "b1");
   switch (h.tip) {
     case "turkiye_haritasi": {
       const bolgeRenkleri: Partial<Record<Bolge, string>> = {};
@@ -1037,11 +1117,106 @@ function vuruslariTemizle(ham: unknown): Vurus[] {
     .filter((v) => v && typeof v === "object")
     .map((v, i) => ({
       id: yazi(v.id, 20) ?? `v${i + 1}`,
-      soz: sozTemizle(String(v.soz ?? v.konusmaMetni ?? "")).slice(0, 400),
-      aksiyonlar: dizi(v.aksiyonlar, 4, aksiyonTemizle),
+      soz: sozTemizle(String(v.soz ?? v.konusmaMetni ?? v.metin ?? "")).slice(0, 400),
+      aksiyonlar: dizi(hamAksiyonlar(v), 4, aksiyonTemizle),
     }))
     .filter((v) => v.soz || v.aksiyonlar.length)
     .slice(0, 16);
+}
+
+function hamAksiyonlar(v: Record<string, unknown>): unknown {
+  for (const anahtar of ["aksiyonlar", "aksiyon", "cizimler", "cizim", "actions"]) {
+    const deger = v[anahtar];
+    if (Array.isArray(deger)) return deger;
+    if (nesne(deger)) return [deger];
+  }
+  return [];
+}
+
+const ANA_GORSEL_TIPLERI = new Set<Aksiyon["tip"]>([
+  "turkiye_haritasi",
+  "matematik_grafigi",
+  "geometri",
+  "akis_semasi",
+  "zaman_cizelgesi",
+  "tablo",
+  "hazir_sahne",
+  "geometri_ve_diyagram",
+]);
+const YEDEK_NOT_GORSEL = "yedek_not";
+const YEDEK_SEMA_GORSEL = "yedek_sema";
+const MAKS_NOT_SATIRI = 6;
+const GIRIS_KALIBI =
+  /^(?:bak|bakalım|dikkat et|dikkat|şimdi|peki|evet|harika|güzel|tamam|işte|öyleyse|o halde|hatırla|unutma|şuraya odaklan|fark ettin mi)[\s,!:.]+/iu;
+
+// Sözden tahtaya yazılabilecek kısa bir anahtar ifade çıkarır.
+function anahtarIfade(soz: string, maksKelime = 8) {
+  const cumleler = soz.match(/[^.!?…]+[.!?…]*/g)?.map((c) => c.trim()).filter(Boolean) ?? [];
+  const secilen =
+    cumleler.find((c) => /(?:demektir|denir|eşittir|yani|çünkü|bu yüzden|sonuç olarak|olarak adlandır)/iu.test(c)) ??
+    cumleler.find((c) => !c.endsWith("?")) ??
+    cumleler[0];
+  if (!secilen) return undefined;
+  let temiz = secilen.replace(/[.!…]+$/, "").trim();
+  for (let i = 0; i < 3; i++) temiz = temiz.replace(GIRIS_KALIBI, "").trim();
+  const kelimeler = temiz.split(/\s+/).filter(Boolean);
+  if (kelimeler.length < 2) return undefined;
+  const kisa = kelimeler.slice(0, maksKelime).join(" ").replace(/[,;:—–]+$/, "");
+  return buyukBasla(kelimeler.length > maksKelime ? `${kisa}…` : kisa);
+}
+
+// Model bazı sahnelerde hiç çizim üretmeyebiliyor ya da vuruşların çoğunu boş bırakabiliyor; bu durumda öğretmen
+// boş tahtayı anlatıyordu. Konuşmadan türetilen bir kavram şeması / kısa notlarla tahtayı doldurur.
+function bosTahtayiDoldur(vuruslar: Vurus[]): Vurus[] {
+  if (vuruslar.length === 0) return vuruslar;
+  const doluMu = (v: Vurus) => v.aksiyonlar.some((a) => a.tip !== "vurgula");
+  const anaGorselVar = vuruslar.some((v) => v.aksiyonlar.some((a) => ANA_GORSEL_TIPLERI.has(a.tip)));
+  const hedefDolu = Math.ceil((vuruslar.length * 2) / 3);
+  let doluSayisi = vuruslar.filter(doluMu).length;
+  if (anaGorselVar && doluSayisi >= hedefDolu) return vuruslar;
+
+  const bosIndeksler = vuruslar
+    .map((v, i) => (!doluMu(v) && (i > 0 || vuruslar.length === 1) ? i : -1))
+    .filter((i) => i >= 0);
+
+  if (!anaGorselVar) {
+    const dugumIndeksleri = bosIndeksler.slice(0, 7);
+    if (dugumIndeksleri.length === 0 && vuruslar[0] && !doluMu(vuruslar[0])) dugumIndeksleri.push(0);
+    let onceki: string | undefined;
+    const yon = dugumIndeksleri.length > 4 ? "LR" : "TB";
+    return vuruslar.map((v, i) => {
+      if (!dugumIndeksleri.includes(i)) return v;
+      const etiket = anahtarIfade(v.soz, 7);
+      if (!etiket) return v;
+      const id = `n${i}`;
+      const aksiyon: AkisSemasiAksiyonu = {
+        tip: "akis_semasi",
+        gorsel: YEDEK_SEMA_GORSEL,
+        yon,
+        dugumler: [{ id, etiket, sekil: onceki ? "kutu" : "yuvarlak", dolgu: onceki ? "#e7f5ff" : "#fff3bf" }],
+        baglantilar: onceki ? [{ kaynak: onceki, hedef: id }] : undefined,
+      };
+      onceki = id;
+      return { ...v, aksiyonlar: [...v.aksiyonlar, aksiyon] };
+    });
+  }
+
+  const mevcutNot = vuruslar.reduce((t, v) => t + v.aksiyonlar.filter((a) => a.tip === "formul_ve_not").length, 0);
+  let kalanNot = Math.max(0, MAKS_NOT_SATIRI - mevcutNot);
+  const notGorseli =
+    vuruslar.flatMap((v) => v.aksiyonlar).find((a) => a.tip === "formul_ve_not")?.gorsel ?? YEDEK_NOT_GORSEL;
+  return vuruslar.map((v, i) => {
+    if (kalanNot <= 0 || doluSayisi >= hedefDolu || !bosIndeksler.includes(i)) return v;
+    const not = anahtarIfade(v.soz);
+    if (!not) return v;
+    kalanNot--;
+    doluSayisi++;
+    return { ...v, aksiyonlar: [...v.aksiyonlar, { tip: "formul_ve_not", gorsel: notGorseli, not, renk: "normal" }] };
+  });
+}
+
+function vuruslariHazirla(vuruslar: Vurus[]): Vurus[] {
+  return gorselKimlikleriniAyir(bosTahtayiDoldur(vuruslar));
 }
 
 function gorevTemizle(ham: unknown): MiniGorev | null {
@@ -1077,7 +1252,7 @@ function sahneleriTemizle(ham: unknown): Sahne[] {
   return ham
     .filter((s) => s && typeof s === "object")
     .map((s) => {
-      const vuruslar = baslikTekrariniAyikla(vuruslariTemizle(s.vuruslar), String(s.baslik ?? ""));
+      const vuruslar = vuruslariHazirla(baslikTekrariniAyikla(vuruslariTemizle(s.vuruslar), String(s.baslik ?? "")));
       const haritaVar = vuruslar.some((v) => v.aksiyonlar.some((a) => a.tip === "turkiye_haritasi"));
       let miniGorev = gorevTemizle(s.miniGorev);
       if (miniGorev?.tur === "il_tikla" && !haritaVar) miniGorev = null;
@@ -1206,6 +1381,7 @@ export async function POST(req: Request) {
       const aciklama = duzYaziyaCevir(String(veri.aciklama ?? "").trim()) || "Bunu birlikte inceleyelim.";
       let vuruslar = vuruslariTemizle(veri.vuruslar);
       if (vuruslar.length === 0) vuruslar = [{ id: "v1", soz: aciklama, aksiyonlar: [] }];
+      vuruslar = vuruslariHazirla(vuruslar);
       return Response.json({ aciklama, vuruslar });
     }
 

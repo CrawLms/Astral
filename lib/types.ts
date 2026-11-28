@@ -486,6 +486,36 @@ export type SoruYaniti = { aciklama: string; vuruslar: Vurus[] } | { hata: strin
 
 export type TestYaniti = { sorular: TestSorusu[] } | { hata: string };
 
+const aksiyonTurAnahtari = (a: Aksiyon) => (a.tip === "hazir_sahne" ? `hazir_sahne:${a.sablon}` : a.tip);
+
+// Aynı "gorsel" kimliği farklı blok tipleriyle kullanılırsa tahtada yalnızca ilk tip çizilir ve diğerleri
+// kaybolur. Çakışan kimlikleri tip bazında yeniden adlandırır; çakışma yoksa vuruşları aynen döndürür.
+export function gorselKimlikleriniAyir(vuruslar: Vurus[]): Vurus[] {
+  const ilkTur = new Map<string, string>();
+  let degisti = false;
+  const sonuc = vuruslar.map((v) => {
+    const katman = vurusKatmani(v);
+    let vurusDegisti = false;
+    const aksiyonlar = v.aksiyonlar.map((a) => {
+      if (a.tip === "vurgula") return a;
+      const anahtar = `${katman}|${a.gorsel}`;
+      const tur = aksiyonTurAnahtari(a);
+      const kayitli = ilkTur.get(anahtar);
+      if (kayitli === undefined) {
+        ilkTur.set(anahtar, tur);
+        return a;
+      }
+      if (kayitli === tur) return a;
+      vurusDegisti = true;
+      return { ...a, gorsel: `${a.gorsel}~${tur.replace(/[^a-z0-9_]/gi, "")}` };
+    });
+    if (!vurusDegisti) return v;
+    degisti = true;
+    return { ...v, aksiyonlar };
+  });
+  return degisti ? sonuc : vuruslar;
+}
+
 export function sahneMetni(sahne: Sahne) {
   return sahne.vuruslar.map((v) => v.soz).join(" ");
 }

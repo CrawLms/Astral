@@ -50,6 +50,7 @@ import { duzYaziyaCevir } from "@/lib/metin-temizle";
 import { ALAN_H, ALAN_W, FOTO_BLOK, alanY, katmanFotografi, renkCoz, yerlesim, type Blok, type IlerlemeDeposu } from "@/lib/ogretmen-cizim";
 import {
   aktifKatman,
+  gorselKimlikleriniAyir,
   vurusKatmani,
   type AkisSemasiAksiyonu,
   type Aksiyon,
@@ -1504,7 +1505,11 @@ function blokIcerigi({
   }
 }
 
-const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilTiklama }: SahneProps) {
+const SahneKatmani = memo(function SahneKatmani({ sahne: hamSahne, sira, vurusSira, p, ilTiklama }: SahneProps) {
+  const sahne = useMemo(() => {
+    const vuruslar = gorselKimlikleriniAyir(hamSahne.vuruslar);
+    return vuruslar === hamSahne.vuruslar ? hamSahne : { ...hamSahne, vuruslar };
+  }, [hamSahne]);
   const katman = aktifKatman(sahne, vurusSira);
   const bloklar = useMemo(() => yerlesim(sahne, { katman }), [sahne, katman]);
   const tumAksiyonlar = useMemo(() => {
