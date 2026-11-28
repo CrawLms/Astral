@@ -8,6 +8,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { CanliKatman } from "@/hooks/use-oynatici";
 import { latexGorseli, type HazirGorsel } from "@/lib/gorsel-donustur";
 import { guzelAdim, ifadeDerle } from "@/lib/matematik";
+import { duzYaziyaCevir } from "@/lib/metin-temizle";
 import { ALAN_H, ALAN_W, FOTO_BLOK, alanY, katmanFotografi, renkCoz, yerlesim, type Blok, type IlerlemeDeposu } from "@/lib/ogretmen-cizim";
 import {
   aktifKatman,
@@ -119,13 +120,14 @@ function Cizgi({ d, renk, kalinlik = 2, p, dolgu, kesikli }: { d: string; renk: 
   );
 }
 
-function Kaba({ cizim, p }: { cizim: Drawable; p: number }) {
+function Kaba({ cizim, p, kesikli }: { cizim: Drawable; p: number; kesikli?: boolean }) {
   const yollar = useMemo(() => gen.toPaths(cizim), [cizim]);
   return (
     <g>
-      {yollar.map((y, i) => (
-        <Cizgi key={i} d={y.d} renk={y.stroke} kalinlik={y.strokeWidth} dolgu={y.fill && y.fill !== "none" ? y.fill : undefined} p={p} />
-      ))}
+      {yollar.map((y, i) => {
+        const dolgu = y.fill && y.fill !== "none" ? y.fill : undefined;
+        return <Cizgi key={i} d={y.d} renk={y.stroke} kalinlik={y.strokeWidth} dolgu={dolgu} p={p} kesikli={kesikli && !dolgu} />;
+      })}
     </g>
   );
 }
@@ -502,7 +504,7 @@ const DONUSUM_DESENI = /^[a-z0-9\s(),.\-]+$/i;
 const YOL_DESENI = /^[MmLlHhVvCcSsQqTtAaZz\d\s.,\-eE]+$/;
 
 type DiyagramOgesi =
-  | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; sinir: Sinir | null }
+  | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; kesikli: boolean; sinir: Sinir | null }
   | { tur: "yazi"; x: number; y: number; metin: string; boyut: number; ozgunBoyut: number; renk: string; hizala: Hizalama; donusum?: string };
 
 type Matris = [number, number, number, number, number, number];
@@ -698,7 +700,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
       }
       const matris = donusum ? donusumMatrisi(donusum) : null;
       if (ad === "text") {
-        const metin = cocuk.textContent?.trim().replace(/\s+/g, " ").slice(0, 80);
+        const metin = duzYaziyaCevir(cocuk.textContent?.trim() ?? "").replace(/\s+/g, " ").slice(0, 80);
         if (!metin) continue;
         const anchor = cocuk.getAttribute("text-anchor");
         let x = sayi(cocuk, "x");
@@ -729,16 +731,17 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         });
         continue;
       }
+      const kesikli = Boolean(cocuk.getAttribute("stroke-dasharray")?.trim().match(/^[\d.]+/));
       const o: Options = {
         seed: tohum(`${anahtar}-${ogeler.length}`),
-        roughness: 0.9,
-        bowing: 0.8,
+        roughness: 0.55,
+        bowing: 0.45,
+        preserveVertices: true,
+        disableMultiStroke: kesikli,
         stroke: stroke && stroke !== "none" ? stroke : "#1e1e1e",
-        strokeWidth: Math.max(1, Math.min(6, sayi(cocuk, "stroke-width", 2.2))),
+        strokeWidth: Math.max(1, Math.min(6, sayi(cocuk, "stroke-width", 2.4))),
         fill: fill && fill !== "none" && fill !== "transparent" ? fill : undefined,
-        fillStyle: "hachure",
-        hachureGap: 7,
-        fillWeight: 1.2,
+        fillStyle: "solid",
       };
       let cizim: Drawable | null = null;
       if (ad === "line") cizim = gen.line(sayi(cocuk, "x1"), sayi(cocuk, "y1"), sayi(cocuk, "x2"), sayi(cocuk, "y2"), o);
@@ -755,7 +758,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         const kapali = ad === "rect" || ad === "circle" || ad === "ellipse" || ad === "polygon";
         const sonCizim = matris ? cizimDonustur(cizim, matris) : cizim;
         const sekilDonusumu = matris ? undefined : donusum || undefined;
-        ogeler.push({ tur: "sekil", cizim: sonCizim, donusum: sekilDonusumu, kapali, sinir: cizimSiniri(sonCizim) });
+        ogeler.push({ tur: "sekil", cizim: sonCizim, donusum: sekilDonusumu, kapali, kesikli, sinir: cizimSiniri(sonCizim) });
       }
     }
   };
@@ -819,7 +822,7 @@ function DiyagramBlok({
           if (p <= 0) return null;
           return (
             <g key={`${ai}-${j}`} transform={o.donusum}>
-              {o.tur === "sekil" ? <Kaba cizim={o.cizim} p={p} /> : <Yazi x={o.x} y={o.y} metin={o.metin} boyut={o.boyut} renk={o.renk} hizala={o.hizala} p={p} />}
+              {o.tur === "sekil" ? <Kaba cizim={o.cizim} p={p} kesikli={o.kesikli} /> : <Yazi x={o.x} y={o.y} metin={o.metin} boyut={o.boyut} renk={o.renk} hizala={o.hizala} p={p} />}
             </g>
           );
         }),
@@ -880,7 +883,7 @@ function formulDuzeni(aksiyonlar: FormulAksiyonu[], kutuW: number, kutuH: number
   const hesapla = (w: number) => {
     let y = 6;
     const satirlar = aksiyonlar.map((a) => {
-      const notlar = a.not ? satirlaraBol(a.not, w, NOT_BOYUT) : [];
+      const notlar = a.not ? satirlaraBol(duzYaziyaCevir(a.not), w, NOT_BOYUT) : [];
       const satir = { y, notlar };
       y += (a.latex ? LATEX_H + 12 : 0) + notlar.length * NOT_SATIR + SATIR_BOSLUK;
       return satir;
@@ -921,7 +924,7 @@ function FormulSatiri({ aksiyon, p, y, genislik, notlar }: { aksiyon: FormulAksi
           )}
         </g>
       )}
-      {aksiyon.latex && !g && p > 0 && <Yazi x={12} y={y + 30} metin={aksiyon.latex} boyut={18} renk={renk} p={latexP} />}
+      {aksiyon.latex && !g && p > 0 && <Yazi x={12} y={y + 34} metin={duzYaziyaCevir(aksiyon.latex)} boyut={26} renk={renk} p={latexP} />}
       {notlar.map((satir, k) => (
         <Yazi
           key={k}
