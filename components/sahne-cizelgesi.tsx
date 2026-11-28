@@ -8,8 +8,8 @@ type CizelgeProps = { sahneler: Sahne[]; aktif: number; onSec: (sira: number) =>
 export function SahneCizelgesi({ sahneler, aktif, onSec }: CizelgeProps) {
   if (!sahneler.length) return null;
   return (
-    <nav aria-label="Sahne zaman çizelgesi" className="border-b border-border bg-card/60">
-      <ol className="flex gap-1.5 overflow-x-auto px-3 py-2 [scrollbar-width:thin]">
+    <nav aria-label="Sahne zaman çizelgesi" className="shrink-0 border-b border-border bg-sidebar">
+      <ol className="flex gap-1.5 overflow-x-auto px-2 py-1.5 [scrollbar-width:none] sm:px-3">
         {sahneler.map((s, i) => {
           const durum = i === aktif ? "aktif" : i < aktif ? "bitti" : "sonra";
           return (

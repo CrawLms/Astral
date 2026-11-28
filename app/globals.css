@@ -83,6 +83,21 @@ body {
   animation: kart-giris 0.25s ease-out;
 }
 
+@keyframes kenar-giris {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 767px) {
+  .kenar-giris {
+    animation: kenar-giris 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
 @keyframes lazer-nabiz {
   0%,
   100% {
@@ -104,7 +119,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .lazer-halkasi,
   .konusma-cubugu,
-  .kart-giris {
+  .kart-giris,
+  .kenar-giris {
     animation: none;
   }
 }
