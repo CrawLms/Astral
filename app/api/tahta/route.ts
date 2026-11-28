@@ -1,4 +1,4 @@
-import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
+import { hataYaniti, jsonCikar, modelSec, sohbetTamamla, type SohbetMesaji } from "@/lib/ai-yardimci";
 import { duzYaziyaCevir, latexKacisOnar } from "@/lib/metin-temizle";
 import { dersNotu } from "@/lib/ders-rehberi";
 import { dersAdiTemizle } from "@/lib/dersler";
@@ -244,6 +244,22 @@ ${SVG_KURALLARI}
 Her sahne için "sira" alanına o sahnenin başlığında verilen sira değerini AYNEN yaz ve sahneleri verilen sırayla döndür.
 YALNIZCA şu JSON'u döndür:
 {"cizimler":[{"sira":3,"katmanlar":[{"vurus":"v2","svg":"<svg viewBox='0 0 800 460'>...</svg>"}]}]}`;
+
+const OZEL_CIZIM_TALIMATI = `${OGRETMEN_KIMLIGI} Öğrenci tahtaya özel bir çizim yapmanı istiyor ve ne çizmeni istediğini tarif ediyor. O tarifi, konuşurken eş zamanlı çizdiğin sahneye özel, yaratıcı bir illüstrasyonla resmet ve kısaca anlat.
+- 4-7 vuruş üret. İlk vuruşta ne çizeceğini bir cümleyle söyle (aksiyonsuz olabilir). Sonraki HER vuruşta aynı "il1" bloğuna YENİ bir katman ekle: önce zemin/mekân ve ana nesne, sonra parçalar, etiketler, oklar, karakterler, konuşma balonları veya hareket. Her katman yalnızca yeni parçaları içerir; önceki katmanları tekrar gönderme.
+- Sözlerde "çiziyorum, ekliyorum" diye kendi eylemini anlatma; çizilen şeyin ne olduğunu ve neden önemli olduğunu öğretici biçimde açıkla.
+- Söylediğin şey o anda çizilmiş olsun. Somut, tanınır ve konuya özgü çiz; kutu-ok kavram şeması, ikon ızgarası veya tablo ÇİZME. Kompozisyonu tarife göre kur (manzara, kesit, olay anı, düzenek, karakterler).
+- İstersen son vuruşlarda tek bir {"tip":"formul_ve_not","gorsel":"f1","satirlar":[{"metin":"...","renk":"vurgu"}]} ile 1-3 kısa not ekle.
+- Tarif bir ders konusuyla ilgisizse bile kibarca ve öğretici biçimde çiz; uygunsuz, şiddet içeren veya müstehcen bir istek gelirse çizme ve kibarca reddet.
+- Peygamberleri, sahabeleri ve kutsal kişileri ASLA insan figürü, yüz veya çöp adam olarak çizme.
+YAZI: <text> içine düz metin yaz; LaTeX, $ veya ^{ } yazma, Unicode kullan (x², H₂O, 30°, →).
+Aksiyon biçimi: {"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
+${SVG_KURALLARI}
+"vuruslar" dizisinde EN AZ 4, EN FAZLA 7 vuruş olmalı; tek vuruşluk yanıt GEÇERSİZDİR. Her svg yalnızca o vuruşun yeni parçalarını içeren tam bir <svg viewBox='0 0 800 460'> belgesidir.
+YALNIZCA şu yapıda JSON döndür (… yerine gerçek içerik):
+{"aciklama":"…","vuruslar":[{"id":"v1","soz":"…","aksiyonlar":[]},{"id":"v2","soz":"…","aksiyonlar":[{"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'>…</svg>"}]},{"id":"v3","soz":"…","aksiyonlar":[{"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'>…</svg>"}]},{"id":"v4","soz":"…","aksiyonlar":[{"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'>…</svg>"}]},{"id":"v5","soz":"…","aksiyonlar":[{"tip":"formul_ve_not","gorsel":"f1","satirlar":[{"metin":"…","renk":"vurgu"}]}]}]}`;
+
+const MIN_OZEL_CIZIM_VURUSU = 3;
 
 const TEST_TALIMATI = `Sen bir Türk öğretmensin. Verilen ünite metninden öğrencinin anlayıp anlamadığını ölçen TAM 3 adet çoktan seçmeli soru hazırla.
 Her sorunun 4 seçeneği olsun, yalnızca biri doğru olsun. Sorular ezber değil kavrama ölçsün.
@@ -1346,7 +1362,8 @@ type Govde =
       miniSoru?: string | null;
     }
   | { mode: "test"; model?: string; ders?: string; baslik?: string; metin?: string }
-  | { mode: "illustrasyon"; model?: string; seviye?: Seviye; ders?: string; uniteBaslik?: string; sahneler?: unknown };
+  | { mode: "illustrasyon"; model?: string; seviye?: Seviye; ders?: string; uniteBaslik?: string; sahneler?: unknown }
+  | { mode: "ozel_cizim"; model?: string; seviye?: Seviye; ders?: string; uniteBaslik?: string; tarif?: string };
 
 const MAKS_KATMAN = 6;
 
@@ -1500,11 +1517,45 @@ export async function POST(req: Request) {
           content: `${govde.uniteBaslik ? `Ünite: ${yazi(govde.uniteBaslik, 120)}\n` : ""}Aşağıdaki ${istek.length} sahnenin her biri için ayrı, sahneye özel illüstrasyon çiz.\n\n${sahneMetinleri}`,
         },
       ]);
-      console.log("[v0] illustrasyon ham:", text.slice(0, 1500));
-      (await import("node:fs")).writeFileSync("/tmp/ill-ham.txt", text);
       const cizimler = illustrasyonlariTemizle(jsonCikar<{ cizimler?: unknown }>(text).cizimler, istek);
       if (cizimler.length === 0) return Response.json({ hata: "İllüstrasyon üretilemedi." }, { status: 422 });
       return Response.json({ cizimler });
+    }
+
+    if (govde.mode === "ozel_cizim") {
+      const tarif = (yazi(govde.tarif, 600) ?? "").replace(/\s+/g, " ").trim();
+      if (!tarif) return Response.json({ hata: "Ne çizmemi istediğini yaz." }, { status: 400 });
+      const mesajlar: SohbetMesaji[] = [
+        { role: "system", content: OZEL_CIZIM_TALIMATI + seviyeNotu(govde.seviye) + dersNotu(govde.ders) },
+        {
+          role: "user",
+          content: `${govde.uniteBaslik ? `Şu anki ünite: ${yazi(govde.uniteBaslik, 120)}\n` : ""}Çizilmesini istediğim şey: ${tarif}`,
+        },
+      ];
+      const cizimiAl = async (m: SohbetMesaji[]) => {
+        const text = await sohbetTamamla(model, m);
+        const veri = jsonCikar<{ aciklama?: string; vuruslar?: unknown }>(text);
+        return { text, aciklama: String(veri.aciklama ?? "").trim(), vuruslar: vuruslariTemizle(veri.vuruslar) };
+      };
+      let sonuc = await cizimiAl(mesajlar);
+      // Model bazen tek vuruşta bırakıyor; katman katman çizim için bir kez daha, eksik kısmı açıkça belirterek iste.
+      if (sonuc.vuruslar.length < MIN_OZEL_CIZIM_VURUSU) {
+        const ikinci = await cizimiAl([
+          ...mesajlar,
+          { role: "assistant", content: sonuc.text },
+          {
+            role: "user",
+            content: `Yalnızca ${sonuc.vuruslar.length} vuruş döndürdün. Çizimi baştan, 4-7 vuruşta katman katman kur: her vuruşta il1 bloğuna yeni parçalar ekle. Aynı JSON yapısını döndür.`,
+          },
+        ]);
+        if (ikinci.vuruslar.length > sonuc.vuruslar.length) sonuc = ikinci;
+      }
+      const vuruslar = sonuc.vuruslar;
+      if (!vuruslar.some((v) => v.aksiyonlar.some((a) => a.tip === "geometri_ve_diyagram"))) {
+        return Response.json({ hata: "Bu çizim üretilemedi. Tarifi biraz değiştirip tekrar deneyin." }, { status: 422 });
+      }
+      const aciklama = duzYaziyaCevir(sonuc.aciklama) || "Hemen çiziyorum.";
+      return Response.json({ aciklama, vuruslar: vuruslariHazirla(vuruslar) });
     }
 
     return Response.json({ hata: "Bilinmeyen mod." }, { status: 400 });

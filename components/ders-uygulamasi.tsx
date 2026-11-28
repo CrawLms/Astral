@@ -390,6 +390,38 @@ export default function DersUygulamasi() {
     [ogretmenModu, seviye, konu, aktifSahne, oynatici],
   );
 
+  const ozelCizimIste = useCallback(
+    async (tarif: string) => {
+      if (!tarif) {
+        setHata("Ne çizmemi istediğini yaz.");
+        return false;
+      }
+      setHata(null);
+      setGonderiliyor(true);
+      oynatici.duraklat();
+      try {
+        const yanit = await fetch("/api/tahta", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "ozel_cizim", seviye, ders: konu?.ders, uniteBaslik: konu?.baslik, tarif }),
+        });
+        const veri = (await yanit.json()) as SoruYaniti;
+        if ("hata" in veri) {
+          setHata(veri.hata);
+          return false;
+        }
+        oynatici.cevabiAnlat({ baslik: "Özel çizim", vuruslar: veri.vuruslar }, "gec");
+        return true;
+      } catch {
+        setHata("Çizim isteği gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.");
+        return false;
+      } finally {
+        setGonderiliyor(false);
+      }
+    },
+    [seviye, konu, oynatici],
+  );
+
   const ilTiklandi = useCallback(
     (plaka: number, ad: string) => {
       const g = oynatici.gorev;
@@ -549,6 +581,7 @@ export default function DersUygulamasi() {
           onHataKapat={() => setHata(null)}
           gonderiliyor={gonderiliyor}
           onGonder={(metin, fotograf) => ogretmeneSor({ metin, fotograf })}
+          onCizimIste={ozelCizimIste}
           tamamlaGorunur={Boolean(konu?.uniteId) && oynatici.sahneler.length > 0}
           onTamamla={tamamlaVeGec}
           testGorunur={Boolean(konu && konuMetni) && oynatici.bitti}
