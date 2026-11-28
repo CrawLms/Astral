@@ -13,6 +13,7 @@ import { ANAHTARLAR, oku, sil, yaz } from "@/lib/depolama";
 import type { HazirGorsel } from "@/lib/gorsel-donustur";
 import { birlesikGorselAl } from "@/lib/ogretmen-cizim";
 import { GorevKarti, SahneCizelgesi } from "./sahne-cizelgesi";
+import { BosTahtaIpucu, TahtaYukleniyor } from "./tahta-ipuclari";
 import {
   sahneGecerliMi,
   sahneMetni,
@@ -37,19 +38,17 @@ const BeyazTahta = dynamic(() => import("./beyaz-tahta"), {
 
 const OgretmenSahnesi = dynamic(() => import("./ogretmen-sahnesi"), { ssr: false });
 
-const VARSAYILAN_MODEL = "gpt-6.1-sol";
-
 type Konu = { baslik: string; uniteId: string | null };
 type KayitliDers = { konu: Konu; metin: string; sahneler: Sahne[] };
 type SoruIstegi = { metin: string; fotograf?: HazirGorsel | null; tahtaGonder?: boolean };
 
-function modelDuzelt(kayitli: string) {
+function modelDuzelt(kayitli: string, varsayilan: string) {
   return kayitli.startsWith("google/") || kayitli.startsWith("openai/") || kayitli.startsWith("anthropic/")
-    ? VARSAYILAN_MODEL
+    ? varsayilan
     : kayitli;
 }
 
-export default function DersUygulamasi() {
+export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: string }) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const katmanRef = useRef<SVGSVGElement | null>(null);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -61,7 +60,7 @@ export default function DersUygulamasi() {
   const [aktifUniteId, setAktifUniteId] = useState<string | null>(null);
   const [sayfalar, setSayfalar] = useState<SayfaMetni[]>([]);
   const [kitapAdi, setKitapAdi] = useState<string | null>(null);
-  const [model, setModel] = useState<string>(VARSAYILAN_MODEL);
+  const [model, setModel] = useState<string>(varsayilanModel);
   const [sesAcik, setSesAcik] = useState(true);
   const [hiz, setHiz] = useState(1);
   const [ogretmenModu, setOgretmenModu] = useState<OgretmenModu>("anlatim");
@@ -102,7 +101,7 @@ export default function DersUygulamasi() {
         oku<string | null>(ANAHTARLAR.aktifUnite, null),
         oku<SayfaMetni[]>(ANAHTARLAR.sayfalar, []),
         oku<string | null>(ANAHTARLAR.kitapAdi, null),
-        oku<string>(ANAHTARLAR.model, VARSAYILAN_MODEL),
+        oku<string>(ANAHTARLAR.model, varsayilanModel),
         oku<boolean>(ANAHTARLAR.ses, true),
         oku<number>(ANAHTARLAR.hiz, 1),
         oku<OgretmenModu>(ANAHTARLAR.mod, "anlatim"),
@@ -113,7 +112,7 @@ export default function DersUygulamasi() {
       setAktifUniteId(a);
       setSayfalar(s);
       setKitapAdi(k);
-      setModel(modelDuzelt(m));
+      setModel(modelDuzelt(m, varsayilanModel));
       setSesAcik(ses);
       setHiz(h);
       setOgretmenModu(mod);
@@ -128,7 +127,7 @@ export default function DersUygulamasi() {
     return () => {
       iptal = true;
     };
-  }, []);
+  }, [varsayilanModel]);
 
   useEffect(() => {
     if (hazir) yaz(ANAHTARLAR.uniteler, uniteler);
@@ -417,6 +416,8 @@ export default function DersUygulamasi() {
             }}
           />
           <KalemKatmani apiRef={apiRef} canliRef={oynatici.canliRef} />
+          {!oynatici.sahneler.length && !yukleniyor && <BosTahtaIpucu kitapVar={uniteler.length > 0} />}
+          {yukleniyor && <TahtaYukleniyor metin={yukleniyor} />}
           {oynatici.gorev && (
             <GorevKarti
               gorev={oynatici.gorev}

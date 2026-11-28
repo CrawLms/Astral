@@ -105,15 +105,24 @@ export function AltPanel({
           </div>
         )}
 
-        <div className="flex min-h-0 gap-3">
-          <span
-            className={`flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ${
-              konusuyor ? "ring-4 ring-primary/20" : ""
-            }`}
-            aria-hidden
-          >
-            <GraduationCap className="size-4" />
-          </span>
+        <div className="flex min-h-0 gap-3 rounded-xl border border-border bg-sidebar p-3">
+          <div className="flex shrink-0 flex-col items-center gap-1.5">
+            <span
+              className={`flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-shadow ${
+                konusuyor ? "ring-4 ring-primary/20" : ""
+              }`}
+              aria-hidden
+            >
+              <GraduationCap className="size-4" />
+            </span>
+            {konusuyor && (
+              <span className="flex h-3 items-end gap-0.5" aria-label="Öğretmen konuşuyor" role="img">
+                {[0, 0.15, 0.3, 0.45].map((g) => (
+                  <span key={g} className="konusma-cubugu h-full w-0.5 rounded-full bg-primary" style={{ animationDelay: `${g}s` }} />
+                ))}
+              </span>
+            )}
+          </div>
           <div className="min-w-0 flex-1" aria-live="polite">
             {yukleniyor ? (
               <p className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
@@ -122,8 +131,14 @@ export function AltPanel({
               </p>
             ) : mesaj ? (
               <>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {mesaj.tur === "cevap" ? "Öğretmenin cevabı" : mesaj.baslik}
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span
+                    className={`size-1.5 rounded-full ${
+                      mesaj.tur === "cevap" ? "bg-success" : mesaj.tur === "bilgi" ? "bg-accent" : "bg-primary"
+                    }`}
+                    aria-hidden
+                  />
+                  <span className="truncate">{mesaj.tur === "cevap" ? "Öğretmenin cevabı" : mesaj.baslik}</span>
                 </p>
                 <p className="mt-1 text-pretty text-sm leading-relaxed">{mesaj.metin}</p>
               </>

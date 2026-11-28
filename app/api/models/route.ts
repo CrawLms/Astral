@@ -1,8 +1,8 @@
-import { apiIstegi, hataYaniti } from "@/lib/ai-yardimci";
+import { apiIstegi, hataYaniti, MODEL_LISTESI_ZAMAN_ASIMI_MS, VARSAYILAN_MODEL } from "@/lib/ai-yardimci";
 
 export async function GET() {
   try {
-    const yanit = await apiIstegi("/models", { method: "GET" }, 20_000);
+    const yanit = await apiIstegi("/models", { method: "GET" }, MODEL_LISTESI_ZAMAN_ASIMI_MS);
     const data = await yanit.json().catch(() => null);
     const liste: unknown[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
     const modeller = [
@@ -12,7 +12,7 @@ export async function GET() {
           .filter((id): id is string => typeof id === "string" && id.length > 0),
       ),
     ].sort();
-    return Response.json({ modeller });
+    return Response.json({ modeller, varsayilan: VARSAYILAN_MODEL });
   } catch (hata) {
     return hataYaniti(hata, "-");
   }
