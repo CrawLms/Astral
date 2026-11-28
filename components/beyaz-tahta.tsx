@@ -18,6 +18,7 @@ const KAYIT_GECIKMESI = 900;
 export default function BeyazTahta({ onApi }: Props) {
   const zamanlayici = useRef<number | null>(null);
   const aktifApiId = useRef<string | null>(null);
+  const sonApi = useRef<ExcalidrawImperativeAPI | null>(null);
   const sonSurum = useRef(-1);
 
   const [yukleme] = useState(() => {
@@ -58,11 +59,17 @@ export default function BeyazTahta({ onApi }: Props) {
       <Excalidraw
         excalidrawAPI={(api) => {
           // StrictMode constructs Excalidraw twice; only the mounted instance ever emits onChange.
-          api.onChange(() => {
+          const etkinlestir = () => {
             if (aktifApiId.current === api.id) return;
             aktifApiId.current = api.id;
             onApi(api);
-          });
+          };
+          api.onChange(etkinlestir);
+          sonApi.current = api;
+          // onChange may never fire until the user touches the board; fall back to the latest constructed instance.
+          window.setTimeout(() => {
+            if (!aktifApiId.current && sonApi.current === api) etkinlestir();
+          }, 400);
         }}
         langCode="tr-TR"
         theme="light"

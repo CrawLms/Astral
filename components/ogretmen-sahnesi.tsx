@@ -22,6 +22,16 @@ function tohum(metin: string) {
   return (Math.abs(h) % 2_000_000) + 1;
 }
 
+const etiketNormal = (m?: string) => (m ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("tr");
+
+export function etiketBirlestir(ana?: string, yardimci?: string, ayrac = " — ") {
+  const a = (ana ?? "").trim();
+  const y = (yardimci ?? "").trim();
+  if (!a) return y;
+  if (!y || etiketNormal(a) === etiketNormal(y)) return a;
+  return `${a}${ayrac}${y}`;
+}
+
 const parcaIlerlemesi = (p: number, sira: number, toplam: number) => sinirla(p * toplam - sira);
 
 type Parca<T extends Aksiyon = Aksiyon> = { aksiyon: T; p: number };
@@ -213,7 +223,7 @@ function HaritaBlok({ parcalar, ilTiklama }: { parcalar: Parca<HaritaAksiyonu>[]
         return (
           <g key={`pin-${il.plaka}`} style={{ pointerEvents: "none" }}>
             <circle cx={c.x} cy={c.y} r={6 * sinirla(il.p * 2)} fill={renk} stroke="#ffffff" strokeWidth={2} />
-            <Yazi x={c.x} y={c.y - 14} metin={il.etiket ? `${ad} — ${il.etiket}` : ad} boyut={18} renk="#1e1e1e" hizala="middle" p={sinirla((il.p - 0.4) * 1.7)} />
+            <Yazi x={c.x} y={c.y - 14} metin={etiketBirlestir(ad, il.etiket)} boyut={18} renk="#1e1e1e" hizala="middle" p={sinirla((il.p - 0.4) * 1.7)} />
           </g>
         );
       })}
@@ -295,7 +305,7 @@ function GrafikBlok({ parcalar, blokId }: { parcalar: Parca<GrafikAksiyonu>[]; b
             <g key={i}>
               <Cizgi d={`M${sx(x)} ${eksenler.ex} L${sx(x)} ${sy(y)} L${eksenler.ey} ${sy(y)}`} renk="#adb5bd" kalinlik={1.5} p={o.p} kesikli />
               <circle cx={sx(x)} cy={sy(y)} r={6 * sinirla(o.p * 2)} fill="#e03131" stroke="#fff" strokeWidth={2} />
-              <Yazi x={sx(x) + 10} y={sy(y) - 10} metin={etiket || `(${x}, ${y})`} boyut={16} renk="#e03131" p={sinirla((o.p - 0.3) * 1.5)} />
+              <Yazi x={sx(x) + 10} y={sy(y) - 10} metin={etiketBirlestir(etiket || `(${x}, ${y})`)} boyut={16} renk="#e03131" p={sinirla((o.p - 0.3) * 1.5)} />
             </g>
           );
         }
@@ -411,10 +421,16 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         const metin = cocuk.textContent?.trim().slice(0, 80);
         if (!metin) continue;
         const anchor = cocuk.getAttribute("text-anchor");
+        const x = sayi(cocuk, "x");
+        const y = sayi(cocuk, "y");
+        const tekrar = ogeler.some(
+          (o) => o.tur === "yazi" && etiketNormal(o.metin) === etiketNormal(metin) && Math.hypot(o.x - x, o.y - y) < 60,
+        );
+        if (tekrar) continue;
         ogeler.push({
           tur: "yazi",
-          x: sayi(cocuk, "x"),
-          y: sayi(cocuk, "y"),
+          x,
+          y,
           metin,
           boyut: Math.max(10, Math.min(48, sayi(cocuk, "font-size", 20))),
           renk: fill && fill !== "none" ? fill : "#1e1e1e",
@@ -657,7 +673,7 @@ export default function OgretmenSahnesi({ api, svgRef, canliRef, sahneler, aktif
     }
   });
 
-  const gorunen = aktif >= 0 ? sahneler.slice(0, aktif + 1) : [];
+  const aktifSahne = aktif >= 0 ? sahneler[aktif] : undefined;
   return (
     <div className={`pointer-events-none absolute inset-0 overflow-hidden ${ilTiklama ? "z-[4]" : ""}`} aria-hidden={!ilTiklama}>
       <div ref={tasiyiciRef} className="absolute left-0 top-0 origin-top-left">
@@ -669,16 +685,9 @@ export default function OgretmenSahnesi({ api, svgRef, canliRef, sahneler, aktif
           className="block"
           style={{ overflow: "visible" }}
         >
-          {gorunen.map((s, i) => (
-            <SahneKatmani
-              key={i}
-              sahne={s}
-              sira={i}
-              vurusSira={i < aktif ? Number.MAX_SAFE_INTEGER : aktifVurus}
-              p={i < aktif ? 1 : p}
-              ilTiklama={i === aktif ? ilTiklama : undefined}
-            />
-          ))}
+          {aktifSahne && (
+            <SahneKatmani key={aktif} sahne={aktifSahne} sira={aktif} vurusSira={aktifVurus} p={p} ilTiklama={ilTiklama} />
+          )}
         </svg>
       </div>
     </div>

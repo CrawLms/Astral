@@ -1,6 +1,9 @@
-export const VARSAYILAN_MODEL = "gpt-6.1-sol";
-const VARSAYILAN_BASE_URL = "https://api.noxery.net/v1";
-const ZAMAN_ASIMI_MS = 280_000;
+import "server-only";
+import { AI_AYARLARI } from "@/config/ai-config";
+
+export const VARSAYILAN_MODEL: string = AI_AYARLARI.varsayilanModel;
+const ZAMAN_ASIMI_MS: number = AI_AYARLARI.compat.zamanAsimiMs;
+export const MODEL_LISTESI_ZAMAN_ASIMI_MS: number = AI_AYARLARI.compat.modelListesiZamanAsimiMs;
 
 const MODEL_DESENI = /^[a-z0-9][\w.:/-]{0,127}$/i;
 
@@ -8,7 +11,7 @@ export function modelSec(istenen?: unknown): string {
   if (typeof istenen === "string" && MODEL_DESENI.test(istenen.trim())) {
     return istenen.trim();
   }
-  return process.env.OPENAI_COMPAT_MODEL || VARSAYILAN_MODEL;
+  return VARSAYILAN_MODEL;
 }
 
 export class AiHatasi extends Error {
@@ -24,10 +27,10 @@ const PLACEHOLDER_DESENI = /^(your[-_ ]?|<|\.\.\.|xxx|changeme|placeholder|buray
 
 function envDogrula(ad: string, deger: string) {
   if (!deger) {
-    throw new AiHatasi(`Sunucuda ${ad} ortam değişkeni boş veya tanımlı değil. Ayarlar > Vars bölümünden ekleyin.`, 500);
+    throw new AiHatasi(`config/ai-config.ts içindeki ${ad} alanı boş. Değeri bu dosyaya girin.`, 500);
   }
   if (PLACEHOLDER_DESENI.test(deger)) {
-    throw new AiHatasi(`${ad} değeri örnek/placeholder gibi görünüyor. Gerçek değeri Ayarlar > Vars bölümüne girin.`, 500);
+    throw new AiHatasi(`config/ai-config.ts içindeki ${ad} değeri örnek/placeholder gibi görünüyor. Gerçek değeri girin.`, 500);
   }
   for (let i = 0; i < deger.length; i++) {
     const kod = deger.charCodeAt(i);
@@ -44,12 +47,12 @@ function envDogrula(ad: string, deger: string) {
 }
 
 export function apiAyarlari() {
-  const baseUrl = (process.env.OPENAI_COMPAT_BASE_URL ?? "").trim() || VARSAYILAN_BASE_URL;
-  const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? "").trim();
-  envDogrula("OPENAI_COMPAT_API_KEY", apiKey);
-  envDogrula("OPENAI_COMPAT_BASE_URL", baseUrl);
+  const baseUrl = AI_AYARLARI.baseUrl.trim();
+  const apiKey = (AI_AYARLARI.apiKey as string).trim() || (process.env.OPENAI_COMPAT_API_KEY ?? "").trim();
+  envDogrula("apiKey", apiKey);
+  envDogrula("baseUrl", baseUrl);
   if (!/^https?:\/\/[^\s/]+/i.test(baseUrl)) {
-    throw new AiHatasi("OPENAI_COMPAT_BASE_URL geçerli bir http(s) adresi değil (ör. https://api.noxery.net/v1).", 400);
+    throw new AiHatasi("config/ai-config.ts içindeki baseUrl geçerli bir http(s) adresi değil (ör. https://api.noxery.net/v1).", 400);
   }
   return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
 }
@@ -107,7 +110,7 @@ export type SohbetMesaji = {
 export async function sohbetTamamla(model: string, messages: SohbetMesaji[]): Promise<string> {
   const yanit = await apiIstegi("/chat/completions", {
     method: "POST",
-    body: JSON.stringify({ model, messages, max_tokens: 16384 }),
+    body: JSON.stringify({ model, messages, max_tokens: AI_AYARLARI.compat.maxTokens }),
   });
   const data = await yanit.json().catch(() => null);
   const icerik = data?.choices?.[0]?.message?.content;
@@ -140,7 +143,7 @@ export function hataYaniti(hata: unknown, model: string) {
   console.error("[tahta] AI hatası:", kod, mesaj);
 
   let ipucu = "";
-  if (kod === 401) ipucu = " OPENAI_COMPAT_API_KEY değerini kontrol edin.";
+  if (kod === 401) ipucu = " config/ai-config.ts içindeki apiKey değerini kontrol edin.";
   else if (kod === 403) ipucu = ` "${model}" modeline erişim izniniz olmayabilir.`;
   else if (kod === 404) ipucu = ` "${model}" modeli bulunamamış olabilir; üst bardan farklı bir model seçin.`;
   else if (kod === 429) ipucu = " İstek sınırı/kota aşıldı, biraz bekleyip tekrar deneyin.";

@@ -46,7 +46,10 @@ type GorevProps = {
 export function GorevKarti({ gorev, sonuc, onGec }: GorevProps) {
   const Ikon = gorev.tur === "il_tikla" ? MapPin : PencilLine;
   return (
-    <div role="status" className="absolute right-4 top-4 z-[6] w-[min(320px,calc(100%-2rem))] rounded-xl border border-border bg-card p-4 text-card-foreground shadow-lg">
+    <div
+      role="status"
+      className="absolute bottom-[72px] right-3 z-[6] w-[min(320px,calc(100%-1.5rem))] rounded-xl border border-border bg-card/95 p-4 text-card-foreground shadow-lg ring-1 ring-primary/10 backdrop-blur-sm kart-giris sm:right-4"
+    >
       <div className="flex items-start gap-3">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Ikon className="size-4" aria-hidden />

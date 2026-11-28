@@ -30,7 +30,11 @@ export type Blok = { id: string; tip: GorselTipi; kutu: Kutu };
 
 export const FOTO_BLOK = "__foto";
 
-export function yerlesim(sahne: Sahne): Map<string, Blok> {
+export const SAHNE_UST_BOSLUK = 10;
+
+export function yerlesim(sahne: Sahne, { topInset = SAHNE_UST_BOSLUK }: { topInset?: number } = {}): Map<string, Blok> {
+  const icerikY = ICERIK_Y + topInset;
+  const icerikH = ICERIK_H - topInset;
   const sirali: { id: string; tip: GorselTipi }[] = [];
   if (sahne.fotograf) sirali.push({ id: FOTO_BLOK, tip: "fotograf" });
   for (const v of sahne.vuruslar) {
@@ -47,29 +51,41 @@ export function yerlesim(sahne: Sahne): Map<string, Blok> {
   const sutun = buyuk.length <= 1 ? 1 : solW >= ALAN_W ? 2 : buyuk.length > 2 ? 2 : 1;
   const satir = Math.ceil(buyuk.length / sutun) || 1;
   const bw = (solW - G * (sutun - 1)) / sutun;
-  const bh = (ICERIK_H - G * (satir - 1)) / satir;
+  const bh = (icerikH - G * (satir - 1)) / satir;
   buyuk.forEach((b, i) => {
     const c = i % sutun;
     const r = Math.floor(i / sutun);
-    sonuc.set(b.id, { ...b, kutu: { x: c * (bw + G), y: ICERIK_Y + r * (bh + G), w: bw, h: bh } });
+    sonuc.set(b.id, { ...b, kutu: { x: c * (bw + G), y: icerikY + r * (bh + G), w: bw, h: bh } });
   });
 
   const kx = buyuk.length ? solW + G : 0;
   const kw = ALAN_W - kx;
-  const kh = (ICERIK_H - G * (kucuk.length - 1)) / (kucuk.length || 1);
-  kucuk.forEach((b, i) => sonuc.set(b.id, { ...b, kutu: { x: kx, y: ICERIK_Y + i * (kh + G), w: kw, h: kh } }));
+  const kh = (icerikH - G * (kucuk.length - 1)) / (kucuk.length || 1);
+  kucuk.forEach((b, i) => sonuc.set(b.id, { ...b, kutu: { x: kx, y: icerikY + i * (kh + G), w: kw, h: kh } }));
   return sonuc;
 }
 
-export function sahneyeOdaklan(api: ExcalidrawImperativeAPI, sira: number) {
+export const UST_GUVENLI_BOSLUK = 96;
+const ALT_GUVENLI_BOSLUK = 56;
+const CERCEVE_PAYI = 14;
+
+export function sahneyeOdaklan(
+  api: ExcalidrawImperativeAPI,
+  sira: number,
+  { topInset = UST_GUVENLI_BOSLUK, bottomInset = ALT_GUVENLI_BOSLUK }: { topInset?: number; bottomInset?: number } = {},
+) {
   const st = api.getAppState();
   if (!st.width || !st.height) return;
-  const z = Math.max(0.25, Math.min(1.4, st.width / (ALAN_W + 60), st.height / (ALAN_H + 40)));
+  const ust = Math.min(topInset, st.height * 0.25);
+  const kullanilabilirH = Math.max(120, st.height - ust - bottomInset);
+  const sahneH = ALAN_H + CERCEVE_PAYI * 2;
+  const z = Math.max(0.25, Math.min(1.4, st.width / (ALAN_W + 60), kullanilabilirH / sahneH));
+  const ekranUst = ust + (kullanilabilirH - sahneH * z) / 2;
   api.updateScene({
     appState: {
       zoom: { value: z as NormalizedZoomValue },
       scrollX: (st.width / z - ALAN_W) / 2,
-      scrollY: (st.height / z - ALAN_H) / 2 - alanY(sira),
+      scrollY: ekranUst / z + CERCEVE_PAYI - alanY(sira),
     },
     captureUpdate: CaptureUpdateAction.NEVER,
   });
