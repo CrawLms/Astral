@@ -1,5 +1,7 @@
 import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
 import { duzYaziyaCevir, latexKacisOnar } from "@/lib/metin-temizle";
+import { dersNotu } from "@/lib/ders-rehberi";
+import { dersAdiTemizle } from "@/lib/dersler";
 import type {
   Aksiyon,
   BaglantiOku,
@@ -68,6 +70,21 @@ DİYAGRAM ANİMASYONU (hareket, değişim veya süreç anlatılırken KULLAN —
 - <text> içine YALNIZCA düz yazı yaz. LaTeX, $, ters bölü komutları (text, frac, vec...), ^{ } ve _{ } YASAK. Üs/indis ve semboller için Unicode kullan: x², v₀, F₁, 30°, Δx, √2, π, ½, ≤, →.
 YAZI ALANLARI: "not", "etiket", "ad", "yonerge", "miniSoru" alanları DÜZ METİNDİR; içlerine LaTeX komutu, $ veya ters bölü yazma, gerekirse Unicode sembol kullan. LaTeX yalnızca formul_ve_not içindeki "latex" alanına yazılır.`;
 
+const YARATICI_TAHTA = `YARATICI TAHTA ANLATIMI (YouTube'daki çizimli anlatım videoları gibi; HER DERSTE ZORUNLU):
+- Her ders görselleştirilir. Sözel derslerde de (edebiyat, tarih, felsefe, din, dil bilgisi, yabancı dil) asla yalnızca yazıyla anlatma. Her söylenen fikrin tahtada bir görsel karşılığı olsun.
+- Tahtayı boş bırakma. Vuruşların en az üçte ikisinde tahtaya bir şey eklensin; aksiyonsuz vuruş arka arkaya ikiden fazla olmasın (yalnızca başlığı tanıtan ilk vuruş boş olabilir). Her sahnede en az bir geometri_ve_diyagram, turkiye_haritasi veya matematik_grafigi bloğu olsun; bir sahneyi yalnızca formul_ve_not ile geçirme.
+- Bir ana resmi parça parça kur: sahnenin ana çizimini (sahne, kavram haritası, zaman çizelgesi, kesit) vuruşlar boyunca aynı bloğa adım adım ekle. Birbirinden kopuk küçük resimler yerine anlatımla birlikte büyüyen tek bir tablo olsun.
+- Soyutu somutlaştır: soyut kavramlar için akılda kalan bir METAFOR bul ve çiz. Örnekler: denge için terazi, süreç için dişli çarklar, gelişim için merdiven, bağlantı için köprü, temel fikir için evin temeli, karar için yol ayrımı, bellek için dosya dolabı, fikir için ampul, koruma için kalkan.
+- Kullanabileceğin anlatım kalıpları: önce/sonra iki panel, neden → sonuç zinciri, döngü okları, yakınlaştırma (büyüteç dairesi + kesikli çizgilerle detay kutusu), karşılaştırma tablosu, kavram haritası, zaman çizelgesi, ağaç şeması, piramit, akış şeması.
+- Karakter kullan: insanları, yazarları, tarihî kişileri, örnek öğrenciyi basit çöp adam veya büst olarak çiz (baş daire, gövde ve kollar çizgi); konuşma balonu (yuvarlak dikdörtgen + küçük kuyruk üçgeni) ve düşünce balonu (bulut + küçük daireler) ile konuştur.
+- Basit ikonlar (yalnızca temel şekillerle çizilir): güneş (sarı daire + 8 ışın çizgisi), bulut (C eğrili path ile yan yana tümsekler, açık mavi dolgu), dünya (daire + ekvator elipsi + kıta lekeleri path), dağ (üçgen polygon + karlı tepe), ağaç (gövde dikdörtgen + yaprak bulutu), damla, kitap, kalem, ampul, kalp, göz, saat, ev, bayrak, parşömen, terazi, kupa.
+- Sahneye bağlam kat: yer, ortam veya duygu anlatılıyorsa arka plan ögelerini (ufuk çizgisi, güneş, bulut, bina, deniz dalgası) hafifçe çiz; tahta dolu ama düzenli görünsün.
+- Hareket, akış, değişim veya döngü varsa DİYAGRAM ANİMASYONU kurallarıyla canlandır (bulut kaysın, dünya dönsün, kan aksın, ordu ilerlesin).
+ÖRNEK (sözel ders, edebiyat; tek bir d1 bloğu, vuruşlara bölünerek parça parça eklenir):
+v1 dizeler → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><rect x='60' y='60' width='500' height='270' rx='14' fill='#fff9db' stroke='#1e1e1e' stroke-width='2'/><text x='90' y='120' font-size='22' fill='#1e1e1e'>Ben yürürüm yane yane</text><text x='90' y='180' font-size='22' fill='#1e1e1e'>Aşk boyadı beni kane</text><text x='90' y='240' font-size='22' fill='#1e1e1e'>Ne âkilem ne divane</text><text x='90' y='300' font-size='22' fill='#1e1e1e'>Gel gör beni aşk neyledi</text></svg>"}
+v2 kafiye harfleri → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><circle cx='640' cy='112' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='120' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='172' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='180' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='232' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='240' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='292' r='22' fill='#e7f5ff' stroke='#1971c2' stroke-width='2'/><text x='640' y='300' text-anchor='middle' font-size='22' fill='#1971c2'>b</text></svg>"}
+v3 hece sayısı → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><text x='540' y='120' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='540' y='180' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='540' y='240' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='540' y='300' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='400' y='390' text-anchor='middle' font-size='22' fill='#2f9e44'>Şema: aaab · Ölçü: 8'li hece</text></svg>"}`;
+
 const OGRETMEN_KIMLIGI = `KİMLİĞİN: Konusuna hâkim, sabırlı, sıcak ve güven veren deneyimli bir Türk öğretmensin. Karşında tek bir öğrenci var; ona doğrudan "sen" diye hitap ederek gerçek bir sınıf öğretmeni gibi ders anlatırsın. Bir yapay zekâ, asistan veya sunucu gibi değil, öğretmen gibi konuşursun.`;
 
 const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölünür. Öğretmen her vuruşun "soz" cümlesini söylerken AYNI ANDA o vuruşun "aksiyonlar"ı tahtada belirir.
@@ -104,13 +121,14 @@ const PEDAGOJI = `ANLATIM AKIŞI (Astra AI tarzı yapılandırılmış ders):
 6) Tuzak: öğrencilerin en sık yaptığı hatayı "vurgu" renginde göster.
 7) Kontrol: sahne sonunda anladığını ölçen kısa soru sor (miniSoru).
 8) Özet: son sahnede ana fikirleri 3-5 maddede tahtada topla.
+SÖZEL DERSLERDE: Kuralı ezberletme; kitaptaki örnek metni, dizeyi, belgeyi veya cümleyi tahtaya yaz ve kuralı onun üzerinde işaretleyerek göster. Her kavramdan sonra kısa bir uygulama sorusu sor (ör. "Bu dizede hangi sanat var?"). Konuyu dönemine ve tarihsel bağlamına bağla.
 KİTAP METNİNİ AYIKLAMA: Metinde "## " satırları kitabın başlıkları, "▶ " satırları örnek/tanım/uyarı kutularıdır; sahneleri bu başlık sırasına göre kur. Sayfa numarası, üst/alt bilgi, telif, "etkinlik sayfasına geçiniz" gibi gürültüyü yok say. Hiçbir tanımı, formülü ve örneği atlama; ama metni kelimesi kelimesine okumak yerine öğretmen gibi yeniden anlat.`;
 
 const GOREV_KURALI = `"miniGorev" (isteğe bağlı, her 2-3 sahnede bir): {"tur":"il_tikla","yonerge":"Haritada Ankara'ya tıkla","dogruPlaka":6} (yalnızca sahnede harita varsa) veya {"tur":"tahtaya_yaz","yonerge":"Sonucu tahtaya yazıp Tahtayla Birlikte Gönder'e bas"}. Yoksa null.`;
 
 const ANLAT_TALIMATI = `${OGRETMEN_KIMLIGI} Beyaz tahtada konuşurken eş zamanlı çizerek ders anlatıyorsun.
 Sana bir ünitenin TAM metni veriliyor. Bu metindeki HER kavramı, tanımı, formülü, örneği ve detayı eksiksiz öğret; özetleyip atlama.
-Anlatımı mantıklı sahnelere böl (4-12 sahne), her sahnede 4-10 vuruş olsun. Her sahne tek bir alt konuya/adıma odaklansın.
+Anlatımı mantıklı sahnelere böl (4-12 sahne). Kitaptaki her "## " başlık en az bir sahne olsun. Her sahnede 6-10 vuruş olsun; 3-4 vuruşluk yüzeysel sahne kurma. Her sahne tek bir alt konuya/adıma odaklansın ve o alt konuyu örnekle derinleştirsin.
 - "baslik": sahnenin kısa başlığı (1-3 kelime)
 - "miniSoru": öğrencinin anladığını kontrol eden kısa soru YA DA null. Kavram ve örnek sahnelerinin sonunda soru sor.
 ${PEDAGOJI}
@@ -118,6 +136,7 @@ ${GOREV_KURALI}
 ${VURUS_KURALLARI}
 ${CIZIM_STILI}
 ${GORSEL_KURALLARI}
+${YARATICI_TAHTA}
 YALNIZCA şu JSON'u döndür:
 {"sahneler":[{"baslik":"...","miniSoru":null,"miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
 
@@ -130,6 +149,7 @@ KİTAP METNİNİ AYIKLAMA: "## " satırları başlık, "▶ " satırları örnek
 ${VURUS_KURALLARI}
 ${CIZIM_STILI}
 ${GORSEL_KURALLARI}
+${YARATICI_TAHTA}
 YALNIZCA şu JSON'u döndür:
 {"sahneler":[{"baslik":"...","miniSoru":"...","miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
 
@@ -142,6 +162,7 @@ Soruyu adım adım çöz ve açıkla: önce verilenleri ve isteneni tahtaya yaz,
 ${VURUS_KURALLARI}
 ${CIZIM_STILI}
 ${GORSEL_KURALLARI}
+${YARATICI_TAHTA}
 YALNIZCA şu JSON'u döndür:
 {"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
 
@@ -150,6 +171,7 @@ Cevabı veya çözümün tamamını ASLA verme. Öğrencinin attığı adımı d
 ${VURUS_KURALLARI}
 ${CIZIM_STILI}
 ${GORSEL_KURALLARI}
+${YARATICI_TAHTA}
 YALNIZCA şu JSON'u döndür:
 {"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
 
@@ -374,12 +396,22 @@ function sorulariTemizle(ham: unknown): TestSorusu[] {
 }
 
 type Govde =
-  | { mode: "anlat"; model?: string; ogretmenModu?: OgretmenModu; seviye?: Seviye; baslik?: string; altKonular?: string[]; metin?: string }
+  | {
+      mode: "anlat";
+      model?: string;
+      ogretmenModu?: OgretmenModu;
+      seviye?: Seviye;
+      ders?: string;
+      baslik?: string;
+      altKonular?: string[];
+      metin?: string;
+    }
   | {
       mode: "soru";
       model?: string;
       ogretmenModu?: OgretmenModu;
       seviye?: Seviye;
+      ders?: string;
       soru?: string;
       gorsel?: string;
       fotograf?: string;
@@ -387,7 +419,7 @@ type Govde =
       sonAnlatim?: string;
       miniSoru?: string | null;
     }
-  | { mode: "test"; model?: string; baslik?: string; metin?: string };
+  | { mode: "test"; model?: string; ders?: string; baslik?: string; metin?: string };
 
 const base64 = (v?: string | null) => (v ?? "").replace(/^data:image\/[\w+.-]+;base64,/, "");
 const seviyeNotu = (s?: Seviye) => `\nÖğrenci seviyesi: ${SEVIYE_ACIKLAMA[s && s in SEVIYE_ACIKLAMA ? s : "lise"]} Dili, örnekleri ve derinliği buna göre ayarla.`;
@@ -409,7 +441,10 @@ export async function POST(req: Request) {
       const sokratik = govde.ogretmenModu === "sokratik";
       const altKonular = govde.altKonular?.length ? `\nAlt konular: ${govde.altKonular.join(", ")}` : "";
       const text = await sohbetTamamla(model, [
-        { role: "system", content: (sokratik ? SOKRATIK_ANLAT_TALIMATI : ANLAT_TALIMATI) + seviyeNotu(govde.seviye) },
+        {
+          role: "system",
+          content: (sokratik ? SOKRATIK_ANLAT_TALIMATI : ANLAT_TALIMATI) + seviyeNotu(govde.seviye) + dersNotu(govde.ders),
+        },
         { role: "user", content: `Ünite: ${govde.baslik ?? "Konu"}${altKonular}\n\n--- ÜNİTE METNİ (TAM) ---\n${metin}` },
       ]);
       const sahneler = sahneleriTemizle(jsonCikar<{ sahneler?: unknown }>(text).sahneler);
@@ -440,7 +475,10 @@ export async function POST(req: Request) {
         .join("\n");
 
       const text = await sohbetTamamla(model, [
-        { role: "system", content: (sokratik ? SOKRATIK_SORU_TALIMATI : SORU_TALIMATI) + seviyeNotu(govde.seviye) },
+        {
+          role: "system",
+          content: (sokratik ? SOKRATIK_SORU_TALIMATI : SORU_TALIMATI) + seviyeNotu(govde.seviye) + dersNotu(govde.ders),
+        },
         {
           role: "user",
           content: [
@@ -462,7 +500,10 @@ export async function POST(req: Request) {
       if (!metin) return Response.json({ hata: "Test için ünite metni gerekli." }, { status: 400 });
       const text = await sohbetTamamla(model, [
         { role: "system", content: TEST_TALIMATI },
-        { role: "user", content: `Ünite: ${govde.baslik ?? "Konu"}\n\n${metin.slice(0, 60_000)}` },
+        {
+          role: "user",
+          content: `${dersAdiTemizle(govde.ders) ? `Ders: ${dersAdiTemizle(govde.ders)}\n` : ""}Ünite: ${govde.baslik ?? "Konu"}\n\n${metin.slice(0, 60_000)}`,
+        },
       ]);
       const sorular = sorulariTemizle(jsonCikar<{ sorular?: unknown }>(text).sorular);
       if (sorular.length === 0) return Response.json({ hata: "Yapay zekâ test sorusu üretemedi. Tekrar deneyin." }, { status: 422 });

@@ -38,7 +38,7 @@ const BeyazTahta = dynamic(() => import("./beyaz-tahta"), {
 
 const OgretmenSahnesi = dynamic(() => import("./ogretmen-sahnesi"), { ssr: false });
 
-type Konu = { baslik: string; uniteId: string | null };
+type Konu = { baslik: string; uniteId: string | null; ders?: string };
 type KayitliDers = { konu: Konu; metin: string; sahneler: Sahne[] };
 type SoruIstegi = { metin: string; fotograf?: HazirGorsel | null; tahtaGonder?: boolean };
 
@@ -60,6 +60,8 @@ export default function DersUygulamasi() {
   const [aktifUniteId, setAktifUniteId] = useState<string | null>(null);
   const [sayfalar, setSayfalar] = useState<SayfaMetni[]>([]);
   const [kitapAdi, setKitapAdi] = useState<string | null>(null);
+  const [kitapDersi, setKitapDersi] = useState<string | null>(null);
+  const [secilenDers, setSecilenDers] = useState("");
   const [sesAcik, setSesAcik] = useState(true);
   const [hiz, setHiz] = useState(1);
   const [ogretmenModu, setOgretmenModu] = useState<OgretmenModu>("anlatim");
@@ -87,6 +89,12 @@ export default function DersUygulamasi() {
     (async () => {
       oku<Seviye>(ANAHTARLAR.seviye, "lise").then((sv) => {
         if (!iptal) setSeviye(sv);
+      });
+      oku<string>(ANAHTARLAR.secilenDers, "").then((d) => {
+        if (!iptal) setSecilenDers((onceki) => onceki || d);
+      });
+      oku<string | null>(ANAHTARLAR.kitapDersi, null).then((d) => {
+        if (!iptal) setKitapDersi(d);
       });
       oku<Tema | null>(ANAHTARLAR.tema, null).then((t) => {
         if (!iptal && t) setTema(t);
@@ -140,6 +148,9 @@ export default function DersUygulamasi() {
     if (hazir) yaz(ANAHTARLAR.seviye, seviye);
   }, [hazir, seviye]);
   useEffect(() => {
+    if (hazir) yaz(ANAHTARLAR.secilenDers, secilenDers);
+  }, [hazir, secilenDers]);
+  useEffect(() => {
     const kok = document.documentElement;
     kok.dataset.tema = tema;
     kok.style.colorScheme = tema;
@@ -169,7 +180,15 @@ export default function DersUygulamasi() {
         const yanit = await fetch("/api/tahta", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "anlat", ogretmenModu, seviye, baslik: yeniKonu.baslik, altKonular, metin }),
+          body: JSON.stringify({
+            mode: "anlat",
+            ogretmenModu,
+            seviye,
+            ders: yeniKonu.ders,
+            baslik: yeniKonu.baslik,
+            altKonular,
+            metin,
+          }),
         });
         const veri = (await yanit.json()) as AnlatYaniti;
         if ("hata" in veri) {
@@ -197,13 +216,15 @@ export default function DersUygulamasi() {
         return;
       }
       setAktifUniteId(unite.id);
-      anlatimIste({ baslik: unite.baslik, uniteId: unite.id }, metin, unite.altKonular);
+      anlatimIste({ baslik: unite.baslik, uniteId: unite.id, ders: kitapDersi ?? undefined }, metin, unite.altKonular);
     },
-    [uniteMetni, anlatimIste],
+    [uniteMetni, anlatimIste, kitapDersi],
   );
 
-  const kitapHazir = useCallback(async (ad: string, yeniSayfalar: SayfaMetni[], yeniUniteler: Unite[]) => {
+  const kitapHazir = useCallback(async (ad: string, yeniSayfalar: SayfaMetni[], yeniUniteler: Unite[], ders: string) => {
     setKitapAdi(ad);
+    setKitapDersi(ders);
+    yaz(ANAHTARLAR.kitapDersi, ders);
     setSayfalar(yeniSayfalar);
     setUniteler(yeniUniteler);
     setAktifUniteId(yeniUniteler[0]?.id ?? null);
@@ -218,12 +239,14 @@ export default function DersUygulamasi() {
     setUniteler([]);
     setSayfalar([]);
     setKitapAdi(null);
+    setKitapDersi(null);
     setAktifUniteId(null);
     setKonu(null);
     setKonuMetni("");
     setTest(null);
     sil(ANAHTARLAR.sayfalar);
     sil(ANAHTARLAR.kitapAdi);
+    sil(ANAHTARLAR.kitapDersi);
     sil(ANAHTARLAR.ders);
   }, [oynatici]);
 
@@ -248,6 +271,7 @@ export default function DersUygulamasi() {
             mode: "soru",
             ogretmenModu,
             seviye,
+            ders: konu?.ders,
             soru: metin,
             gorsel,
             fotograf: fotograf?.dataURL ?? null,
@@ -297,7 +321,7 @@ export default function DersUygulamasi() {
       const yanit = await fetch("/api/tahta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "test", baslik: konu.baslik, metin: konuMetni }),
+        body: JSON.stringify({ mode: "test", ders: konu.ders, baslik: konu.baslik, metin: konuMetni }),
       });
       const veri = (await yanit.json()) as TestYaniti;
       if ("hata" in veri) setHata(veri.hata);
@@ -353,6 +377,9 @@ export default function DersUygulamasi() {
         <div className="kenar-giris fixed inset-y-0 left-0 z-40 w-[min(320px,86vw)] shadow-2xl md:static md:z-auto md:w-[300px] md:shadow-none">
           <KenarCubugu
             kitapAdi={kitapAdi}
+            kitapDersi={kitapDersi}
+            secilenDers={secilenDers}
+            onDersDegis={setSecilenDers}
             uniteler={uniteler}
             aktifUniteId={aktifUniteId}
             anlatimYukleniyor={yukleniyor !== null}
@@ -360,8 +387,8 @@ export default function DersUygulamasi() {
             onKitapHazir={kitapHazir}
             onUniteSec={setAktifUniteId}
             onUniteAnlat={uniteyiAnlat}
-            onMetinAnlat={(metin) =>
-              anlatimIste({ baslik: metin.length > 60 ? `${metin.slice(0, 57)}…` : metin, uniteId: null }, metin)
+            onMetinAnlat={(metin, ders) =>
+              anlatimIste({ baslik: metin.length > 60 ? `${metin.slice(0, 57)}…` : metin, uniteId: null, ders }, metin)
             }
             onSifirla={sifirla}
           />
