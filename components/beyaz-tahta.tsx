@@ -1,21 +1,26 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Excalidraw, getSceneVersion } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, getSceneVersion } from "@excalidraw/excalidraw";
+import { Moon, Sun } from "lucide-react";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFiles, ExcalidrawImperativeAPI, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import { ANAHTARLAR, oku, yaz } from "@/lib/depolama";
 
+export type Tema = "light" | "dark";
+
 type Props = {
   onApi: (api: ExcalidrawImperativeAPI) => void;
+  tema: Tema;
+  onTemaDegistir: () => void;
 };
 
 type KayitliTahta = { elements: OrderedExcalidrawElement[]; files: BinaryFiles };
 
 const KAYIT_GECIKMESI = 900;
 
-export default function BeyazTahta({ onApi }: Props) {
+export default function BeyazTahta({ onApi, tema, onTemaDegistir }: Props) {
   const zamanlayici = useRef<number | null>(null);
   const aktifApiId = useRef<string | null>(null);
   const sonApi = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -72,7 +77,7 @@ export default function BeyazTahta({ onApi }: Props) {
           }, 400);
         }}
         langCode="tr-TR"
-        theme="light"
+        theme={tema}
         initialData={yukleme.veri}
         onChange={(elements, _appState, files) => kaydet(elements, files)}
         UIOptions={{
@@ -82,7 +87,25 @@ export default function BeyazTahta({ onApi }: Props) {
             toggleTheme: false,
           },
         }}
-      />
+      >
+        <MainMenu>
+          <MainMenu.DefaultItems.SaveAsImage />
+          <MainMenu.DefaultItems.Export />
+          <MainMenu.DefaultItems.SearchMenu />
+          <MainMenu.DefaultItems.Help />
+          <MainMenu.DefaultItems.ClearCanvas />
+          <MainMenu.Separator />
+          <MainMenu.Item
+            icon={tema === "dark" ? <Sun strokeWidth={1.75} /> : <Moon strokeWidth={1.75} />}
+            onSelect={onTemaDegistir}
+            aria-label={tema === "dark" ? "Gündüz moduna geç" : "Gece moduna geç"}
+          >
+            {tema === "dark" ? "Gündüz modu" : "Gece modu"}
+          </MainMenu.Item>
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.ChangeCanvasBackground />
+        </MainMenu>
+      </Excalidraw>
     </div>
   );
 }

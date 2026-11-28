@@ -16,6 +16,7 @@ export const ANAHTARLAR = {
   seviye: "seviye",
   ders: "ders",
   tahta: "tahta",
+  tema: "tema",
 } as const;
 
 let depo: UseStore | null = null;

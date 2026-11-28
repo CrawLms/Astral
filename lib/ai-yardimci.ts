@@ -133,7 +133,7 @@ export function jsonCikar<T>(metin: string): T {
         return JSON.parse(temiz.slice(bas, son + 1)) as T;
       } catch {}
     }
-    throw new AiHatasi("Yapay zekâ geçerli bir JSON döndürmedi. Tekrar deneyin veya farklı bir model seçin.", 502);
+    throw new AiHatasi("Yapay zekâ geçerli bir JSON döndürmedi. Lütfen tekrar deneyin.", 502);
   }
 }
 
@@ -145,7 +145,7 @@ export function hataYaniti(hata: unknown, model: string) {
   let ipucu = "";
   if (kod === 401) ipucu = " config/ai-config.ts içindeki apiKey değerini kontrol edin.";
   else if (kod === 403) ipucu = ` "${model}" modeline erişim izniniz olmayabilir.`;
-  else if (kod === 404) ipucu = ` "${model}" modeli bulunamamış olabilir; üst bardan farklı bir model seçin.`;
+  else if (kod === 404) ipucu = ` "${model}" modeli bulunamamış olabilir; config/ai-config.ts içindeki varsayilanModel değerini kontrol edin.`;
   else if (kod === 429) ipucu = " İstek sınırı/kota aşıldı, biraz bekleyip tekrar deneyin.";
 
   const durum = kod >= 400 && kod < 600 ? kod : 500;

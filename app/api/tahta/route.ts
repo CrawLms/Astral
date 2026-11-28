@@ -40,17 +40,38 @@ Renkler: "#hex" veya "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı), 
 const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölünür. Öğretmen her vuruşun "soz" cümlesini söylerken AYNI ANDA o vuruşun "aksiyonlar"ını kalemle çizer.
 - "id": "v1", "v2"...
 - "soz": öğretmenin tam o an söyleyeceği TEK kısa cümle (en fazla ~20 kelime), konuşma dilinde Türkçe, o an çizilen şeyi anlatsın ("Şimdi Ankara'yı kırmızıyla boyuyorum, burası başkentimiz.").
-- "aksiyonlar": yalnızca o cümleye karşılık gelen 0-2 küçük görsel işlem (bir il, bir ok, bir eğri, bir formül satırı...). Bir sahnenin tüm çizimini tek vuruşa yığma.`;
+- "aksiyonlar": yalnızca o cümleye karşılık gelen 0-2 küçük görsel işlem (bir il, bir ok, bir eğri, bir formül satırı...). Bir sahnenin tüm çizimini tek vuruşa yığma.
+- ÇİZİM SESİN ÖNÜNE GEÇMEZ: bir nesne ancak cümlesi söylenirken belirir. Söylenmeyen şeyi çizme, çizilmeyen şeye "burada gördüğün gibi" deme.`;
+
+const CIZIM_STILI = `ÖĞRETMEN ÇİZİM STİLİ (gerçek bir öğretmenin tahtayı kullanma biçimi):
+- Tahtayı yukarıdan aşağı, soldan sağa düzenli doldur: önce sahne başlığını "baslik" renginde ve altı çizili yaz, sonra içerik.
+- Renk kodlaması tutarlı olsun: yeni terim/tanım "baslik", formül "formul", dikkat/tuzak/sık hata "vurgu", sonuç/cevap "sonuc", ara adımlar "normal". Aynı kavram ders boyunca hep aynı renkte kalsın.
+- Bir vuruşta tek fikir: bir formül satırı, bir okun eklenmesi, bir değerin yerine konması. Çözümü satır satır, her satırda tek işlem yaparak yaz; ara adımı atlama.
+- Kavramlar arasındaki ilişkiyi diyagramla göster (akış, neden-sonuç, karşılaştırma tablosu, zaman çizelgesi); karar noktalarını ayrı kutu/elmas olarak çiz.
+- Önemli yere dönerken "vurgula" aksiyonunu kullan; sonucu "sonuc" renginde ve altı çizili yaz.`;
+
+const PEDAGOJI = `ANLATIM AKIŞI (Astra AI tarzı yapılandırılmış ders):
+1) Kanca: günlük hayattan merak uyandıran bir soru/örnekle başla ve dersin hedefini tek cümlede söyle.
+2) Ön bilgi: konunun dayandığı önceki bilgiyi kısaca hatırlat.
+3) Kavram: tanımı sade dille ver, sezgisini açıkla, hemen görselleştir.
+4) Kural/formül: nereden geldiğini göster; her sembolün anlamını tahtada etiketle.
+5) Çözümlü örnek: kitaptaki örnek soruları (metinde "▶ Örnek" vb.) mutlaka tahtada adım adım çöz; kitapta yoksa kendin kolaydan zora 1-2 örnek kur.
+6) Tuzak: öğrencilerin en sık yaptığı hatayı "vurgu" renginde göster.
+7) Kontrol: sahne sonunda anladığını ölçen kısa soru sor (miniSoru).
+8) Özet: son sahnede ana fikirleri 3-5 maddede tahtada topla.
+KİTAP METNİNİ AYIKLAMA: Metinde "## " satırları kitabın başlıkları, "▶ " satırları örnek/tanım/uyarı kutularıdır; sahneleri bu başlık sırasına göre kur. Sayfa numarası, üst/alt bilgi, telif, "etkinlik sayfasına geçiniz" gibi gürültüyü yok say. Hiçbir tanımı, formülü ve örneği atlama; ama metni kelimesi kelimesine okumak yerine öğretmen gibi yeniden anlat.`;
 
 const GOREV_KURALI = `"miniGorev" (isteğe bağlı, her 2-3 sahnede bir): {"tur":"il_tikla","yonerge":"Haritada Ankara'ya tıkla","dogruPlaka":6} (yalnızca sahnede harita varsa) veya {"tur":"tahtaya_yaz","yonerge":"Sonucu tahtaya yazıp Tahtayla Birlikte Gönder'e bas"}. Yoksa null.`;
 
 const ANLAT_TALIMATI = `Sen sabırlı, net ve sıcak bir Türk öğretmensin. Beyaz tahtada konuşurken eş zamanlı çizerek ders anlatıyorsun.
 Sana bir ünitenin TAM metni veriliyor. Bu metindeki HER kavramı, tanımı, formülü, örneği ve detayı eksiksiz öğret; özetleyip atlama.
-Anlatımı mantıklı sahnelere böl (4-12 sahne), her sahnede 4-10 vuruş olsun.
+Anlatımı mantıklı sahnelere böl (4-12 sahne), her sahnede 4-10 vuruş olsun. Her sahne tek bir alt konuya/adıma odaklansın.
 - "baslik": sahnenin kısa başlığı (1-3 kelime)
-- "miniSoru": öğrencinin anladığını kontrol eden kısa soru YA DA null.
+- "miniSoru": öğrencinin anladığını kontrol eden kısa soru YA DA null. Kavram ve örnek sahnelerinin sonunda soru sor.
+${PEDAGOJI}
 ${GOREV_KURALI}
 ${VURUS_KURALLARI}
+${CIZIM_STILI}
 ${GORSEL_KURALLARI}
 YALNIZCA şu JSON'u döndür:
 {"sahneler":[{"baslik":"...","miniSoru":null,"miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
@@ -59,7 +80,10 @@ const SOKRATIK_ANLAT_TALIMATI = `Sen Sokratik yöntemle öğreten sabırlı bir 
 Sana bir ünitenin metni veriliyor. Konuyu 3-8 sahneye böl, her sahnede 3-8 vuruş olsun. Tahtaya yalnızca soruyu, verilenleri, şemayı ve küçük ipuçlarını çiz.
 - "miniSoru" HER sahnede zorunlu: öğrencinin kendi başına çözüp yazarak veya tahtaya çizerek cevaplayacağı soru.
 ${GOREV_KURALI} Haritalı sahnelerde il_tikla görevini tercih et.
+Sokratik akış: kanca sorusuyla başla, öğrencinin bildiği şeyden yola çık, her sahnede bir sonraki adımı keşfettiren yönlendirici soru sor, ipuçlarını kademeli ver (önce genel, sonra daha belirgin).
+KİTAP METNİNİ AYIKLAMA: "## " satırları başlık, "▶ " satırları örnek/tanım kutularıdır; sahneleri bu sıraya göre kur, gürültüyü (sayfa no, üst/alt bilgi) yok say.
 ${VURUS_KURALLARI}
+${CIZIM_STILI}
 ${GORSEL_KURALLARI}
 YALNIZCA şu JSON'u döndür:
 {"sahneler":[{"baslik":"...","miniSoru":"...","miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
@@ -69,8 +93,9 @@ Cevabını tahtada canlı çizerek ver: 2-8 vuruşluk "vuruslar" dizisi oluştur
 Öğrenci soru fotoğrafı gönderdiyse fotoğraf tahtanın soluna yerleştirilir; sen çözümü yanına adım adım çiz.`;
 
 const SORU_TALIMATI = `Sen sabırlı ve net bir Türk öğretmensin. ${SORU_ORTAK}
-Soruyu adım adım çöz ve açıkla. Öğrenci bir mini soruya cevap veriyorsa doğru olup olmadığını nazikçe söyle ve gerekçesini göster.
+Soruyu adım adım çöz ve açıkla: önce verilenleri ve isteneni tahtaya yaz, sonra kullanılacak kuralı/formülü göster, her satırda tek işlem yap, sonucu "sonuc" renginde altı çizili yaz ve sonunda kısa bir kontrol sorusuyla bitir. Öğrenci bir mini soruya cevap veriyorsa doğru olup olmadığını nazikçe söyle ve gerekçesini göster; yanlışsa hatanın tam olarak hangi adımda olduğunu "vurgu" renginde göster.
 ${VURUS_KURALLARI}
+${CIZIM_STILI}
 ${GORSEL_KURALLARI}
 YALNIZCA şu JSON'u döndür:
 {"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
@@ -279,7 +304,7 @@ export async function POST(req: Request) {
       ]);
       const sahneler = sahneleriTemizle(jsonCikar<{ sahneler?: unknown }>(text).sahneler);
       if (sahneler.length === 0) {
-        return Response.json({ hata: "Yapay zekâ sahne üretemedi. Tekrar deneyin veya farklı bir model seçin." }, { status: 422 });
+        return Response.json({ hata: "Yapay zekâ sahne üretemedi. Lütfen tekrar deneyin." }, { status: 422 });
       }
       return Response.json({ sahneler });
     }

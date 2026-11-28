@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { SEVIYELER, type OgretmenModu, type Seviye } from "@/lib/types";
 import {
-  Cpu,
   Eraser,
   Lightbulb,
   MessagesSquare,
   PanelLeftOpen,
   Pause,
   Play,
-  RefreshCw,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
@@ -27,7 +25,6 @@ type Props = {
   aktif: number;
   oynatiliyor: boolean;
   sesAcik: boolean;
-  model: string;
   hiz: number;
   ogretmenModu: OgretmenModu;
   vurusSayisi: number;
@@ -42,12 +39,9 @@ type Props = {
   onSonraki: () => void;
   onSes: () => void;
   onTemizle: () => void;
-  onModel: (model: string) => void;
 };
 
 export const HIZLAR = [0.75, 1, 1.25, 1.5] as const;
-
-const HAZIR_MODELLER = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", "gpt-6-luna", "gemini-3.8-flash"];
 
 function AracButonu({
   etiket,
@@ -89,30 +83,7 @@ const secimSinifi =
 
 export function UstCubuk(p: Props) {
   const [ayarAcik, setAyarAcik] = useState(false);
-  const [modelTaslak, setModelTaslak] = useState(p.model);
-  const [canliModeller, setCanliModeller] = useState<string[]>([]);
-  const [yenileniyor, setYenileniyor] = useState(false);
-  const [modelDurumu, setModelDurumu] = useState<string | null>(null);
   const sahneVar = p.sahneSayisi > 0;
-  const modelSecenekleri = [...new Set([...HAZIR_MODELLER, ...canliModeller])];
-
-  async function modelleriYenile() {
-    setYenileniyor(true);
-    setModelDurumu(null);
-    try {
-      const yanit = await fetch("/api/models", { cache: "no-store" });
-      const veri = await yanit.json().catch(() => ({}));
-      if (!yanit.ok) throw new Error(veri.hata ?? `HTTP ${yanit.status}`);
-      const liste: string[] = Array.isArray(veri.modeller) ? veri.modeller : [];
-      setCanliModeller(liste);
-      setModelDurumu(`${liste.length} model bulundu`);
-    } catch (hata) {
-      const mesaj = hata instanceof Error ? hata.message : String(hata);
-      setModelDurumu(`Liste alınamadı: ${mesaj}`);
-    } finally {
-      setYenileniyor(false);
-    }
-  }
 
   function temizle() {
     if (window.confirm("Tahtadaki tüm çizimler silinsin mi?")) p.onTemizle();
@@ -297,50 +268,6 @@ export function UstCubuk(p: Props) {
               </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (modelTaslak.trim()) p.onModel(modelTaslak.trim());
-              }}
-            >
-              <label htmlFor="model-id">
-                <AyarBasligi>Yapay zekâ modeli</AyarBasligi>
-              </label>
-              <div className="flex items-center gap-1.5 rounded-lg border border-border bg-background py-1 pl-2.5 pr-1 focus-within:ring-2 focus-within:ring-ring">
-                <Cpu className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                <input
-                  id="model-id"
-                  list="hazir-modeller"
-                  value={modelTaslak}
-                  onChange={(e) => setModelTaslak(e.target.value)}
-                  onBlur={() => modelTaslak.trim() && p.onModel(modelTaslak.trim())}
-                  spellCheck={false}
-                  className="min-w-0 flex-1 bg-transparent font-mono text-base outline-none md:text-xs"
-                  placeholder="model-id"
-                />
-                <datalist id="hazir-modeller">
-                  {modelSecenekleri.map((m) => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
-                <button
-                  type="button"
-                  onClick={modelleriYenile}
-                  disabled={yenileniyor}
-                  aria-label="Modelleri yenile"
-                  title="Modelleri yenile"
-                  className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                >
-                  <RefreshCw className={`size-3.5 ${yenileniyor ? "animate-spin" : ""}`} />
-                </button>
-                <button type="submit" className="h-8 rounded-md bg-muted px-2.5 text-xs font-medium hover:bg-border">
-                  Uygula
-                </button>
-              </div>
-              <p className="mt-1.5 min-h-4 text-xs text-muted-foreground" role="status">
-                {modelDurumu}
-              </p>
-            </form>
           </div>
         </>
       )}

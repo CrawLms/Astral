@@ -14,6 +14,7 @@ import type { HazirGorsel } from "@/lib/gorsel-donustur";
 import { birlesikGorselAl } from "@/lib/ogretmen-cizim";
 import { GorevKarti, SahneCizelgesi } from "./sahne-cizelgesi";
 import { BosTahtaIpucu, TahtaYukleniyor } from "./tahta-ipuclari";
+import type { Tema } from "./beyaz-tahta";
 import {
   sahneGecerliMi,
   sahneMetni,
@@ -47,13 +48,7 @@ function mobilMi() {
 
 function vurusYoksay() {}
 
-function modelDuzelt(kayitli: string, varsayilan: string) {
-  return kayitli.startsWith("google/") || kayitli.startsWith("openai/") || kayitli.startsWith("anthropic/")
-    ? varsayilan
-    : kayitli;
-}
-
-export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: string }) {
+export default function DersUygulamasi() {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const katmanRef = useRef<SVGSVGElement | null>(null);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -65,10 +60,10 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
   const [aktifUniteId, setAktifUniteId] = useState<string | null>(null);
   const [sayfalar, setSayfalar] = useState<SayfaMetni[]>([]);
   const [kitapAdi, setKitapAdi] = useState<string | null>(null);
-  const [model, setModel] = useState<string>(varsayilanModel);
   const [sesAcik, setSesAcik] = useState(true);
   const [hiz, setHiz] = useState(1);
   const [ogretmenModu, setOgretmenModu] = useState<OgretmenModu>("anlatim");
+  const [tema, setTema] = useState<Tema>(() => (document.documentElement.dataset.tema === "dark" ? "dark" : "light"));
 
   const [konu, setKonu] = useState<Konu | null>(null);
   const [konuMetni, setKonuMetni] = useState("");
@@ -93,12 +88,14 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
       oku<Seviye>(ANAHTARLAR.seviye, "lise").then((sv) => {
         if (!iptal) setSeviye(sv);
       });
-      const [u, a, s, k, m, ses, h, mod, ders] = await Promise.all([
+      oku<Tema | null>(ANAHTARLAR.tema, null).then((t) => {
+        if (!iptal && t) setTema(t);
+      });
+      const [u, a, s, k, ses, h, mod, ders] = await Promise.all([
         oku<Unite[]>(ANAHTARLAR.uniteler, []),
         oku<string | null>(ANAHTARLAR.aktifUnite, null),
         oku<SayfaMetni[]>(ANAHTARLAR.sayfalar, []),
         oku<string | null>(ANAHTARLAR.kitapAdi, null),
-        oku<string>(ANAHTARLAR.model, varsayilanModel),
         oku<boolean>(ANAHTARLAR.ses, true),
         oku<number>(ANAHTARLAR.hiz, 1),
         oku<OgretmenModu>(ANAHTARLAR.mod, "anlatim"),
@@ -109,7 +106,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
       setAktifUniteId(a);
       setSayfalar(s);
       setKitapAdi(k);
-      setModel(modelDuzelt(m, varsayilanModel));
       setSesAcik(ses);
       setHiz(h);
       setOgretmenModu(mod);
@@ -123,7 +119,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
     return () => {
       iptal = true;
     };
-  }, [varsayilanModel]);
+  }, []);
 
   useEffect(() => {
     if (hazir) yaz(ANAHTARLAR.uniteler, uniteler);
@@ -131,9 +127,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
   useEffect(() => {
     if (hazir) yaz(ANAHTARLAR.aktifUnite, aktifUniteId);
   }, [hazir, aktifUniteId]);
-  useEffect(() => {
-    if (hazir) yaz(ANAHTARLAR.model, model);
-  }, [hazir, model]);
   useEffect(() => {
     if (hazir) yaz(ANAHTARLAR.ses, sesAcik);
   }, [hazir, sesAcik]);
@@ -146,6 +139,13 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
   useEffect(() => {
     if (hazir) yaz(ANAHTARLAR.seviye, seviye);
   }, [hazir, seviye]);
+  useEffect(() => {
+    const kok = document.documentElement;
+    kok.dataset.tema = tema;
+    kok.style.colorScheme = tema;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", tema === "dark" ? "#121212" : "#ffffff");
+    if (hazir) yaz(ANAHTARLAR.tema, tema);
+  }, [hazir, tema]);
 
   const uniteMetni = useCallback(
     (unite: Unite) =>
@@ -169,7 +169,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
         const yanit = await fetch("/api/tahta", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "anlat", model, ogretmenModu, seviye, baslik: yeniKonu.baslik, altKonular, metin }),
+          body: JSON.stringify({ mode: "anlat", ogretmenModu, seviye, baslik: yeniKonu.baslik, altKonular, metin }),
         });
         const veri = (await yanit.json()) as AnlatYaniti;
         if ("hata" in veri) {
@@ -186,7 +186,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
         setYukleniyor(null);
       }
     },
-    [model, ogretmenModu, seviye, oynatici],
+    [ogretmenModu, seviye, oynatici],
   );
 
   const uniteyiAnlat = useCallback(
@@ -246,7 +246,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: "soru",
-            model,
             ogretmenModu,
             seviye,
             soru: metin,
@@ -276,7 +275,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
         setGonderiliyor(false);
       }
     },
-    [model, ogretmenModu, seviye, konu, aktifSahne, oynatici],
+    [ogretmenModu, seviye, konu, aktifSahne, oynatici],
   );
 
   const ilTiklandi = useCallback(
@@ -296,7 +295,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
       const yanit = await fetch("/api/tahta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "test", model, baslik: konu.baslik, metin: konuMetni }),
+        body: JSON.stringify({ mode: "test", baslik: konu.baslik, metin: konuMetni }),
       });
       const veri = (await yanit.json()) as TestYaniti;
       if ("hata" in veri) setHata(veri.hata);
@@ -306,7 +305,7 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
     } finally {
       setTestYukleniyor(false);
     }
-  }, [konu, konuMetni, model]);
+  }, [konu, konuMetni]);
 
   const testiTahtadaAcikla = useCallback(
     (soru: TestSorusu, verilen: number) => {
@@ -351,7 +350,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
       {kenarAcik && (
         <div className="kenar-giris fixed inset-y-0 left-0 z-40 w-[min(320px,86vw)] shadow-2xl md:static md:z-auto md:w-[300px] md:shadow-none">
           <KenarCubugu
-            model={model}
             kitapAdi={kitapAdi}
             uniteler={uniteler}
             aktifUniteId={aktifUniteId}
@@ -379,7 +377,6 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
           aktifVurus={oynatici.aktifVurus}
           oynatiliyor={oynatici.oynatiliyor}
           sesAcik={sesAcik}
-          model={model}
           hiz={hiz}
           ogretmenModu={ogretmenModu}
           onHiz={setHiz}
@@ -392,10 +389,9 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
           onSonraki={oynatici.sonraki}
           onSes={() => setSesAcik((s) => !s)}
           onTemizle={oynatici.tahtayiTemizle}
-          onModel={setModel}
         />
         <SahneCizelgesi sahneler={oynatici.sahneler} aktif={oynatici.aktif} onSec={oynatici.sahneyeGit} />
-        <div className="relative isolate min-h-0 flex-1 bg-white">
+        <div className={`relative isolate min-h-0 flex-1 ${tema === "dark" ? "bg-[#121212]" : "bg-white"}`}>
           <OgretmenSahnesi
             api={api}
             svgRef={katmanRef}
@@ -411,6 +407,8 @@ export default function DersUygulamasi({ varsayilanModel }: { varsayilanModel: s
               apiRef.current = yeniApi;
               setApi(yeniApi);
             }}
+            tema={tema}
+            onTemaDegistir={() => setTema((t) => (t === "dark" ? "light" : "dark"))}
           />
           <KalemKatmani apiRef={apiRef} canliRef={oynatici.canliRef} />
           {!oynatici.sahneler.length && !yukleniyor && <BosTahtaIpucu kitapVar={uniteler.length > 0} />}

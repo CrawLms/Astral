@@ -675,7 +675,7 @@ export default function OgretmenSahnesi({ api, svgRef, canliRef, sahneler, aktif
 
   const aktifSahne = aktif >= 0 ? sahneler[aktif] : undefined;
   return (
-    <div className={`pointer-events-none absolute inset-0 overflow-hidden ${ilTiklama ? "z-[4]" : ""}`} aria-hidden={!ilTiklama}>
+    <div data-ogretmen-katmani className={`pointer-events-none absolute inset-0 overflow-hidden ${ilTiklama ? "z-[4]" : ""}`} aria-hidden={!ilTiklama}>
       <div ref={tasiyiciRef} className="absolute left-0 top-0 origin-top-left">
         <svg
           ref={svgRef}

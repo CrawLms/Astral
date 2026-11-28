@@ -17,13 +17,15 @@ const ES_ZAMANLI = 3;
 
 const TALIMAT = `Sen deneyimli bir öğretmen ve müfredat planlayıcısısın.
 Sana bir ders kitabının sayfa sayfa başlık/özet bilgileri veriliyor ("[Sayfa N] ..." biçiminde).
+"## " ile başlayan satırlar kitaptaki gerçek başlıklardır (büyük punto); "▶ " ile başlayanlar örnek, tanım, uyarı, kural gibi kutulardır.
 Görevin bu kitabı eksiksiz kapsayan bir DERS PLANI / KONU HARİTASI çıkarmaktır.
 
 Kurallar:
-- Her ünite/konu bir çalışma oturumunda anlatılabilecek büyüklükte olsun (genellikle 3-15 sayfa).
-- İçindekiler, ön söz, kaynakça, cevap anahtarı gibi ders içermeyen sayfaları ünite yapma.
+- Ünite sınırlarını kitabın kendi "## " başlık hiyerarşisine göre belirle; başlığı yoksa konu değişimine bak.
+- Her ünite/konu tek bir çalışma oturumunda anlatılabilecek büyüklükte olsun (genellikle 3-15 sayfa). Çok uzun bölümleri alt başlıklarından böl.
+- İçindekiler, ön söz, kaynakça, cevap anahtarı, dizin gibi ders içermeyen sayfaları ünite yapma.
 - sayfaBaslangic ve sayfaBitis verilen sayfa numaralarından olmalı, üniteler sırayla ve çakışmadan ilerlemeli.
-- altKonular kısa Türkçe başlıklar olsun (2-8 adet).
+- altKonular öğretim sırasına göre kısa Türkçe başlıklar olsun (2-8 adet): önce temel kavram/tanım, sonra kural/formül, sonra örnek ve uygulama. Kitapta çözümlü örnek varsa "Örnek: ..." diye ekle.
 - YALNIZCA şu JSON'u döndür, başka hiçbir şey yazma:
 {"uniteler":[{"baslik":"...","sayfaBaslangic":1,"sayfaBitis":5,"altKonular":["...","..."]}]}`;
 
@@ -132,7 +134,7 @@ export async function POST(req: Request) {
 
     if (uniteler.length === 0) {
       return Response.json(
-        { hata: "Yapay zekâ bu kitaptan ünite çıkaramadı. Farklı bir model deneyin." },
+        { hata: "Yapay zekâ bu kitaptan ünite çıkaramadı. Lütfen tekrar deneyin." },
         { status: 422 },
       );
     }

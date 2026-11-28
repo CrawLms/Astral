@@ -20,6 +20,31 @@
   --secondary-foreground: #1c3d8f;
 }
 
+[data-tema="dark"] {
+  --background: #121212;
+  --foreground: #ececea;
+  --muted: #232323;
+  --muted-foreground: #a3a09b;
+  --border: #2e2e2e;
+  --sidebar: #181818;
+  --primary: #7c9cf0;
+  --primary-foreground: #0d1630;
+  --accent: #f6c344;
+  --accent-foreground: #f8dc8f;
+  --success: #51cf66;
+  --destructive: #ff6b6b;
+  --ring: #7c9cf0;
+  --card: #1c1c1c;
+  --card-foreground: #ececea;
+  --secondary: #1d2540;
+  --secondary-foreground: #b3c5f7;
+}
+
+/* Excalidraw karanlık temada tuvali bu filtreyle çeviriyor; öğretmen katmanı da aynı görünsün diye eşleniyor. */
+[data-tema="dark"] [data-ogretmen-katmani] {
+  filter: invert(93%) hue-rotate(180deg);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

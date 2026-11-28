@@ -13,11 +13,10 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
-import { pdfMetinleriniCikar, taranmisMi } from "@/lib/pdf-oku";
+import { pdfMetinleriniCikar, sayfaOzeti, taranmisMi } from "@/lib/pdf-oku";
 import type { PlanYaniti, SayfaMetni, Unite } from "@/lib/types";
 
 type Props = {
-  model: string;
   kitapAdi: string | null;
   uniteler: Unite[];
   aktifUniteId: string | null;
@@ -38,7 +37,6 @@ type Durum =
   | { tur: "uyari"; mesaj: string };
 
 export function KenarCubugu({
-  model,
   kitapAdi,
   uniteler,
   aktifUniteId,
@@ -91,8 +89,7 @@ export function KenarCubugu({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model,
-          sayfalar: doluSayfalar.map((s) => ({ sayfaNo: s.sayfaNo, ozet: s.metin.slice(0, 500) })),
+          sayfalar: doluSayfalar.map((s) => ({ sayfaNo: s.sayfaNo, ozet: sayfaOzeti(s.metin) })),
         }),
       });
       const veri = (await yanit.json()) as PlanYaniti;

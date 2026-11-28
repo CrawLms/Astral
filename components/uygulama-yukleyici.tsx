@@ -12,6 +12,6 @@ const DersUygulamasi = dynamic(() => import("@/components/ders-uygulamasi"), {
   ),
 });
 
-export function UygulamaYukleyici({ varsayilanModel }: { varsayilanModel: string }) {
-  return <DersUygulamasi varsayilanModel={varsayilanModel} />;
+export function UygulamaYukleyici() {
+  return <DersUygulamasi />;
 }
