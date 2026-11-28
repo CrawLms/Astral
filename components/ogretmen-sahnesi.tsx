@@ -8,13 +8,75 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { CanliKatman } from "@/hooks/use-oynatici";
 import { latexGorseli, type HazirGorsel } from "@/lib/gorsel-donustur";
 import { guzelAdim, ifadeDerle } from "@/lib/matematik";
-import { ALAN_H, ALAN_W, FOTO_BLOK, alanY, renkCoz, yerlesim, type Blok, type IlerlemeDeposu } from "@/lib/ogretmen-cizim";
-import type { Aksiyon, Bolge, DiyagramAksiyonu, FormulAksiyonu, GrafikAksiyonu, HaritaAksiyonu, Sahne } from "@/lib/types";
+import { ALAN_H, ALAN_W, FOTO_BLOK, alanY, katmanFotografi, renkCoz, yerlesim, type Blok, type IlerlemeDeposu } from "@/lib/ogretmen-cizim";
+import {
+  aktifKatman,
+  vurusKatmani,
+  type Aksiyon,
+  type Bolge,
+  type DiyagramAksiyonu,
+  type FormulAksiyonu,
+  type GrafikAksiyonu,
+  type HaritaAksiyonu,
+  type Sahne,
+} from "@/lib/types";
 
 const EL_YAZISI = "Virgil, Excalifont, 'Comic Sans MS', 'Segoe Print', cursive";
 const gen = rough.generator();
 const IL = new Map(cities.map((c) => [c.plateNumber, c]));
 const sinirla = (v: number) => Math.max(0, Math.min(1, v));
+const aralikta = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+type Sinir = { x0: number; y0: number; x1: number; y1: number };
+type Hizalama = "start" | "middle" | "end";
+
+let olcumBaglami: CanvasRenderingContext2D | null | undefined;
+const birimGenislik = new Map<string, number>();
+if (typeof document !== "undefined") document.fonts?.addEventListener?.("loadingdone", () => birimGenislik.clear());
+
+function yaziGenisligi(metin: string, boyut: number) {
+  let birim = birimGenislik.get(metin);
+  if (birim === undefined) {
+    if (olcumBaglami === undefined) olcumBaglami = typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
+    if (olcumBaglami) {
+      olcumBaglami.font = `100px ${EL_YAZISI}`;
+      birim = olcumBaglami.measureText(metin).width / 100;
+    } else birim = metin.length * 0.56;
+    if (birimGenislik.size > 3000) birimGenislik.clear();
+    birimGenislik.set(metin, birim);
+  }
+  return birim * boyut;
+}
+
+function yaziSol(x: number, w: number, hizala: Hizalama) {
+  return hizala === "middle" ? x - w / 2 : hizala === "end" ? x - w : x;
+}
+
+function sinirIcineAl(x: number, y: number, metin: string, boyut: number, hizala: Hizalama, s: Sinir) {
+  const w = yaziGenisligi(metin, boyut);
+  const sol = yaziSol(x, w, hizala);
+  const yeniSol = w >= s.x1 - s.x0 ? s.x0 : aralikta(sol, s.x0, s.x1 - w);
+  return { x: x + yeniSol - sol, y: aralikta(y, s.y0 + boyut * 0.9, s.y1 - boyut * 0.3) };
+}
+
+function etiketKutusu(x: number, y: number, metin: string, boyut: number, hizala: Hizalama): Sinir {
+  const w = yaziGenisligi(metin, boyut);
+  const x0 = yaziSol(x, w, hizala);
+  return { x0, y0: y - boyut * 0.9, x1: x0 + w, y1: y + boyut * 0.3 };
+}
+
+const kesisir = (a: Sinir, b: Sinir) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+function bosYereYerlestir(x: number, y: number, metin: string, boyut: number, hizala: Hizalama, s: Sinir, dolu: Sinir[]) {
+  let ilk: { x: number; y: number } | null = null;
+  for (const kat of [0, 1.3, -1.3, 2.6, -2.6]) {
+    const konum = sinirIcineAl(x, y + kat * boyut, metin, boyut, hizala, s);
+    ilk ??= konum;
+    const kutu = etiketKutusu(konum.x, konum.y, metin, boyut, hizala);
+    if (!dolu.some((d) => kesisir(d, kutu))) return { ...konum, kutu };
+  }
+  return { ...ilk!, kutu: etiketKutusu(ilk!.x, ilk!.y, metin, boyut, hizala) };
+}
 
 function tohum(metin: string) {
   let h = 2166136261;
@@ -83,12 +145,12 @@ function Yazi({
   boyut?: number;
   renk?: string;
   p: number;
-  hizala?: "start" | "middle" | "end";
+  hizala?: Hizalama;
 }) {
   const id = `y${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   if (p <= 0 || !metin) return null;
-  const w = metin.length * boyut * 0.56;
-  const x0 = hizala === "middle" ? x - w / 2 : hizala === "end" ? x - w : x;
+  const w = yaziGenisligi(metin, boyut);
+  const x0 = yaziSol(x, w, hizala);
   return (
     <g>
       {p < 1 && (
@@ -158,7 +220,21 @@ const TemelHarita = memo(function TemelHarita({
   );
 });
 
-function HaritaBlok({ parcalar, ilTiklama }: { parcalar: Parca<HaritaAksiyonu>[]; ilTiklama?: (plaka: number, ad: string) => void }) {
+const HARITA_VB = { x: 10, y: 135, w: 1030, h: 465 };
+const HARITA_SINIR: Sinir = { x0: HARITA_VB.x + 4, y0: HARITA_VB.y + 4, x1: HARITA_VB.x + HARITA_VB.w - 4, y1: HARITA_VB.y + HARITA_VB.h - 4 };
+
+function HaritaBlok({
+  parcalar,
+  ilTiklama,
+  kutu,
+}: {
+  parcalar: Parca<HaritaAksiyonu>[];
+  ilTiklama?: (plaka: number, ad: string) => void;
+  kutu: Blok["kutu"];
+}) {
+  const olcek = Math.min(kutu.w / HARITA_VB.w, kutu.h / HARITA_VB.h);
+  const etiketBoyut = aralikta(18 / olcek, 14, 34);
+  const okBoyut = aralikta(17 / olcek, 13, 32);
   const ilk = parcalar[0];
   const ilkOgeVar = Boolean(
     ilk && ((ilk.aksiyon.vurgulananIller?.length ?? 0) + (ilk.aksiyon.baglantiOklari?.length ?? 0) + Object.keys(ilk.aksiyon.bolgeRenkleri ?? {}).length),
@@ -182,7 +258,7 @@ function HaritaBlok({ parcalar, ilTiklama }: { parcalar: Parca<HaritaAksiyonu>[]
   );
 
   return (
-    <svg viewBox="10 135 1030 465" preserveAspectRatio="xMidYMid meet" overflow="visible">
+    <svg viewBox={`${HARITA_VB.x} ${HARITA_VB.y} ${HARITA_VB.w} ${HARITA_VB.h}`} preserveAspectRatio="xMidYMin meet" overflow="hidden">
       <TemelHarita p={Math.round(temelP * 50) / 50} bolgeler={bolgeAnahtari} ilTiklama={ilTiklama} />
       {iller.map((il) => {
         const c = IL.get(il.plaka);
@@ -205,12 +281,15 @@ function HaritaBlok({ parcalar, ilTiklama }: { parcalar: Parca<HaritaAksiyonu>[]
         const cy = (a.y + b.y) / 2 + dx * 0.25 - 20;
         const aci = Math.atan2(b.y - cy, b.x - cx);
         const uc = (s: number) => `${b.x - 16 * Math.cos(aci + s)} ${b.y - 16 * Math.sin(aci + s)}`;
+        const okEtiket = o.etiket
+          ? sinirIcineAl(0.25 * a.x + 0.5 * cx + 0.25 * b.x, 0.25 * a.y + 0.5 * cy + 0.25 * b.y - 8, o.etiket, okBoyut, "middle", HARITA_SINIR)
+          : null;
         return (
           <g key={`ok-${i}`} style={{ pointerEvents: "none" }}>
             <Cizgi d={`M${a.x} ${a.y} Q${cx} ${cy} ${b.x} ${b.y}`} renk="#1971c2" kalinlik={3} p={sinirla(o.p * 1.15)} />
             {o.p > 0.9 && <Cizgi d={`M${uc(0.45)} L${b.x} ${b.y} L${uc(-0.45)}`} renk="#1971c2" kalinlik={3} p={1} />}
-            {o.etiket && (
-              <Yazi x={0.25 * a.x + 0.5 * cx + 0.25 * b.x} y={0.25 * a.y + 0.5 * cy + 0.25 * b.y - 8} metin={o.etiket} boyut={17} renk="#1971c2" hizala="middle" p={sinirla((o.p - 0.5) * 2)} />
+            {o.etiket && okEtiket && (
+              <Yazi x={okEtiket.x} y={okEtiket.y} metin={o.etiket} boyut={okBoyut} renk="#1971c2" hizala="middle" p={sinirla((o.p - 0.5) * 2)} />
             )}
           </g>
         );
@@ -220,10 +299,12 @@ function HaritaBlok({ parcalar, ilTiklama }: { parcalar: Parca<HaritaAksiyonu>[]
         if (!c || il.p <= 0) return null;
         const renk = renkCoz(il.renk, "#e03131");
         const ad = il.ad || IL.get(il.plaka)?.name || "";
+        const metin = etiketBirlestir(ad, il.etiket);
+        const konum = sinirIcineAl(c.x, c.y - 14, metin, etiketBoyut, "middle", HARITA_SINIR);
         return (
           <g key={`pin-${il.plaka}`} style={{ pointerEvents: "none" }}>
             <circle cx={c.x} cy={c.y} r={6 * sinirla(il.p * 2)} fill={renk} stroke="#ffffff" strokeWidth={2} />
-            <Yazi x={c.x} y={c.y - 14} metin={etiketBirlestir(ad, il.etiket)} boyut={18} renk="#1e1e1e" hizala="middle" p={sinirla((il.p - 0.4) * 1.7)} />
+            <Yazi x={konum.x} y={konum.y} metin={metin} boyut={etiketBoyut} renk="#1e1e1e" hizala="middle" p={sinirla((il.p - 0.4) * 1.7)} />
           </g>
         );
       })}
@@ -235,7 +316,12 @@ const GW = 600;
 const GH = 420;
 const M = { l: 52, r: 22, t: 22, b: 44 };
 
-function GrafikBlok({ parcalar, blokId }: { parcalar: Parca<GrafikAksiyonu>[]; blokId: string }) {
+const GRAFIK_SINIR: Sinir = { x0: 4, y0: 4, x1: GW - 4, y1: GH - 4 };
+
+function GrafikBlok({ parcalar, blokId, kutu }: { parcalar: Parca<GrafikAksiyonu>[]; blokId: string; kutu: Blok["kutu"] }) {
+  const olcek = Math.min(kutu.w / GW, kutu.h / GH);
+  const tikBoyut = aralikta(13 / olcek, 10, 16);
+  const etiketBoyut = aralikta(17 / olcek, 13, 22);
   const tanim = parcalar.find((x) => x.aksiyon.xAralik && x.aksiyon.yAralik)?.aksiyon;
   const [x0, x1] = tanim?.xAralik ?? [-5, 5];
   const [y0, y1] = tanim?.yAralik ?? [-5, 5];
@@ -269,6 +355,16 @@ function GrafikBlok({ parcalar, blokId }: { parcalar: Parca<GrafikAksiyonu>[]; b
     for (const n of aksiyon.noktalar ?? []) ogeler.push({ tur: "n", veri: { ifade: "", renk: "#e03131" }, nokta: n, p: parcaIlerlemesi(ap, j++, toplam) });
   });
 
+  const noktaEtiketleri = new Map<number, { x: number; y: number; metin: string }>();
+  const engeller: Sinir[] = [];
+  ogeler.forEach((o, i) => {
+    if (o.tur !== "n" || !o.nokta) return;
+    const metin = etiketBirlestir(o.nokta.etiket || `(${o.nokta.x}, ${o.nokta.y})`);
+    const yer = bosYereYerlestir(sx(o.nokta.x) + 10, sy(o.nokta.y) - 10, metin, etiketBoyut, "start", GRAFIK_SINIR, engeller);
+    engeller.push(yer.kutu);
+    noktaEtiketleri.set(i, { x: yer.x, y: yer.y, metin });
+  });
+
   const isaretler = (bas: number, son: number, adim: number) => {
     const s: number[] = [];
     for (let v = Math.ceil(bas / adim) * adim; v <= son + 1e-9 && s.length < 30; v += adim) if (Math.abs(v) > 1e-9) s.push(Number(v.toFixed(6)));
@@ -276,11 +372,11 @@ function GrafikBlok({ parcalar, blokId }: { parcalar: Parca<GrafikAksiyonu>[]; b
   };
 
   return (
-    <svg viewBox={`0 0 ${GW} ${GH}`} preserveAspectRatio="xMidYMid meet" overflow="visible">
+    <svg viewBox={`0 0 ${GW} ${GH}`} preserveAspectRatio="xMidYMin meet" overflow="hidden">
       <Kaba cizim={eksenler.x} p={eksenP} />
       <Kaba cizim={eksenler.y} p={eksenP} />
       {eksenP > 0.6 && (
-        <g fontFamily={EL_YAZISI} fontSize={13} fill="#495057" opacity={sinirla((eksenP - 0.6) * 2.5)}>
+        <g fontFamily={EL_YAZISI} fontSize={tikBoyut} fill="#495057" opacity={sinirla((eksenP - 0.6) * 2.5)}>
           {isaretler(x0, x1, eksenler.xAdim).map((v) => (
             <g key={`x${v}`}>
               <line x1={sx(v)} x2={sx(v)} y1={eksenler.ex - 4} y2={eksenler.ex + 4} stroke="#495057" />
@@ -293,23 +389,41 @@ function GrafikBlok({ parcalar, blokId }: { parcalar: Parca<GrafikAksiyonu>[]; b
               <text x={eksenler.ey - 8} y={sy(v) + 4} textAnchor="end">{v}</text>
             </g>
           ))}
-          <text x={GW - M.r + 4} y={eksenler.ex - 8} fontSize={16}>x</text>
-          <text x={eksenler.ey + 8} y={M.t} fontSize={16}>y</text>
+          <text x={GW - M.r - 2} y={eksenler.ex - 8} fontSize={tikBoyut + 3} textAnchor="end">x</text>
+          <text x={eksenler.ey + 8} y={M.t + 4} fontSize={tikBoyut + 3}>y</text>
         </g>
       )}
       {ogeler.map((o, i) => {
         if (o.p <= 0) return null;
         if (o.tur === "n" && o.nokta) {
-          const { x, y, etiket } = o.nokta;
+          const { x, y } = o.nokta;
+          const konum = noktaEtiketleri.get(i)!;
+          const metin = konum.metin;
           return (
             <g key={i}>
               <Cizgi d={`M${sx(x)} ${eksenler.ex} L${sx(x)} ${sy(y)} L${eksenler.ey} ${sy(y)}`} renk="#adb5bd" kalinlik={1.5} p={o.p} kesikli />
               <circle cx={sx(x)} cy={sy(y)} r={6 * sinirla(o.p * 2)} fill="#e03131" stroke="#fff" strokeWidth={2} />
-              <Yazi x={sx(x) + 10} y={sy(y) - 10} metin={etiketBirlestir(etiket || `(${x}, ${y})`)} boyut={16} renk="#e03131" p={sinirla((o.p - 0.3) * 1.5)} />
+              <Yazi x={konum.x} y={konum.y} metin={metin} boyut={etiketBoyut} renk="#e03131" p={sinirla((o.p - 0.3) * 1.5)} />
             </g>
           );
         }
-        return <FonksiyonEgrisi key={i} ifade={o.veri.ifade} renk={renkCoz(o.veri.renk, "#1971c2")} etiket={o.veri.etiket} p={o.p} x0={x0} x1={x1} y0={y0} y1={y1} sx={sx} sy={sy} />;
+        return (
+          <FonksiyonEgrisi
+            key={i}
+            ifade={o.veri.ifade}
+            renk={renkCoz(o.veri.renk, "#1971c2")}
+            etiket={o.veri.etiket}
+            etiketBoyut={etiketBoyut}
+            engeller={engeller}
+            p={o.p}
+            x0={x0}
+            x1={x1}
+            y0={y0}
+            y1={y1}
+            sx={sx}
+            sy={sy}
+          />
+        );
       })}
     </svg>
   );
@@ -319,6 +433,8 @@ function FonksiyonEgrisi({
   ifade,
   renk,
   etiket,
+  etiketBoyut,
+  engeller,
   p,
   x0,
   x1,
@@ -330,6 +446,8 @@ function FonksiyonEgrisi({
   ifade: string;
   renk: string;
   etiket?: string;
+  etiketBoyut: number;
+  engeller: Sinir[];
   p: number;
   x0: number;
   x1: number;
@@ -361,6 +479,8 @@ function FonksiyonEgrisi({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ifade, x0, x1, y0, y1]);
   if (!d) return <Yazi x={GW / 2} y={GH / 2} metin={`Çizilemedi: ${ifade}`} boyut={14} renk="#e03131" p={p} hizala="middle" />;
+  const egriEtiketi = etiket || `y = ${ifade}`;
+  const etiketKonum = son ? bosYereYerlestir(son[0] - 6, son[1] - 12, egriEtiketi, etiketBoyut, "end", GRAFIK_SINIR, engeller) : null;
   return (
     <g>
       <clipPath id={`k${tohum(ifade)}`}>
@@ -369,7 +489,9 @@ function FonksiyonEgrisi({
       <g clipPath={`url(#k${tohum(ifade)})`}>
         <Cizgi d={d} renk={renk} kalinlik={3} p={p} />
       </g>
-      {son && <Yazi x={son[0] - 6} y={son[1] - 12} metin={etiket || `y = ${ifade}`} boyut={16} renk={renk} hizala="end" p={sinirla((p - 0.85) * 6.6)} />}
+      {etiketKonum && (
+        <Yazi x={etiketKonum.x} y={etiketKonum.y} metin={egriEtiketi} boyut={etiketBoyut} renk={renk} hizala="end" p={sinirla((p - 0.85) * 6.6)} />
+      )}
     </g>
   );
 }
@@ -379,11 +501,69 @@ const RENK_DESENI = /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\))$/i;
 const DONUSUM_DESENI = /^[a-z0-9\s(),.\-]+$/i;
 const YOL_DESENI = /^[MmLlHhVvCcSsQqTtAaZz\d\s.,\-eE]+$/;
 
-type Sinir = { x0: number; y0: number; x1: number; y1: number };
-
 type DiyagramOgesi =
   | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; sinir: Sinir | null }
-  | { tur: "yazi"; x: number; y: number; metin: string; boyut: number; renk: string; hizala: "start" | "middle" | "end"; donusum?: string };
+  | { tur: "yazi"; x: number; y: number; metin: string; boyut: number; ozgunBoyut: number; renk: string; hizala: Hizalama; donusum?: string };
+
+type Matris = [number, number, number, number, number, number];
+
+const carp = (m: Matris, n: Matris): Matris => [
+  m[0] * n[0] + m[2] * n[1],
+  m[1] * n[0] + m[3] * n[1],
+  m[0] * n[2] + m[2] * n[3],
+  m[1] * n[2] + m[3] * n[3],
+  m[0] * n[4] + m[2] * n[5] + m[4],
+  m[1] * n[4] + m[3] * n[5] + m[5],
+];
+
+function donusumMatrisi(metin: string): Matris | null {
+  const desen = /(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)/gi;
+  let m: Matris = [1, 0, 0, 1, 0, 0];
+  let bulundu = false;
+  for (let e = desen.exec(metin); e; e = desen.exec(metin)) {
+    bulundu = true;
+    const a = e[2].split(/[\s,]+/).filter(Boolean).map(Number);
+    if (a.some((v) => !Number.isFinite(v))) return null;
+    const derece = ((a[0] ?? 0) * Math.PI) / 180;
+    let n: Matris;
+    switch (e[1].toLowerCase()) {
+      case "matrix":
+        if (a.length !== 6) return null;
+        n = a as Matris;
+        break;
+      case "translate":
+        n = [1, 0, 0, 1, a[0] ?? 0, a[1] ?? 0];
+        break;
+      case "scale":
+        n = [a[0] ?? 1, 0, 0, a[1] ?? a[0] ?? 1, 0, 0];
+        break;
+      case "rotate":
+        n = [Math.cos(derece), Math.sin(derece), -Math.sin(derece), Math.cos(derece), 0, 0];
+        if (a.length === 3) n = carp(carp([1, 0, 0, 1, a[1], a[2]], n), [1, 0, 0, 1, -a[1], -a[2]]);
+        break;
+      case "skewx":
+        n = [1, 0, Math.tan(derece), 1, 0, 0];
+        break;
+      default:
+        n = [1, Math.tan(derece), 0, 1, 0, 0];
+    }
+    m = carp(m, n);
+  }
+  return bulundu ? m : null;
+}
+
+function cizimDonustur(c: Drawable, m: Matris): Drawable {
+  return {
+    ...c,
+    sets: c.sets.map((set) => ({
+      ...set,
+      ops: set.ops.map((op) => ({
+        ...op,
+        data: op.data.map((v, i) => (i % 2 === 0 ? m[0] * v + m[2] * op.data[i + 1] + m[4] : m[1] * op.data[i - 1] + m[3] * v + m[5])),
+      })),
+    })),
+  };
+}
 
 const VARSAYILAN_VB = "0 0 800 460";
 
@@ -408,11 +588,9 @@ function cizimSiniri(c: Drawable): Sinir | null {
   return Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
 }
 
-const yaziGenisligi = (metin: string, boyut: number) => metin.length * boyut * 0.56;
-
 function yaziSiniri(o: Extract<DiyagramOgesi, { tur: "yazi" }>): Sinir {
   const w = yaziGenisligi(o.metin, o.boyut);
-  const x0 = o.hizala === "middle" ? o.x - w / 2 : o.hizala === "end" ? o.x - w : o.x;
+  const x0 = yaziSol(o.x, w, o.hizala);
   return { x0, y0: o.y - o.boyut * 0.9, x1: x0 + w, y1: o.y + o.boyut * 0.3 };
 }
 
@@ -466,19 +644,21 @@ function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
     i = j;
   }
 
-  let x0 = vb.x;
-  let y0 = vb.y;
-  let x1 = vb.x + vb.w;
-  let y1 = vb.y + vb.h;
+  const donusumluVar = parcalar.flat().some((o) => o.donusum);
+  let x0 = donusumluVar ? vb.x : Infinity;
+  let y0 = donusumluVar ? vb.y : Infinity;
+  let x1 = donusumluVar ? vb.x + vb.w : -Infinity;
+  let y1 = donusumluVar ? vb.y + vb.h : -Infinity;
   for (const o of parcalar.flat()) {
     if (o.donusum) continue;
     const s = o.tur === "yazi" ? yaziSiniri(o) : o.sinir;
     if (!s) continue;
-    x0 = Math.min(x0, s.x0 - 12);
-    y0 = Math.min(y0, s.y0 - 12);
-    x1 = Math.max(x1, s.x1 + 12);
-    y1 = Math.max(y1, s.y1 + 12);
+    x0 = Math.min(x0, s.x0 - 24);
+    y0 = Math.min(y0, s.y0 - 24);
+    x1 = Math.max(x1, s.x1 + 24);
+    y1 = Math.max(y1, s.y1 + 24);
   }
+  if (!Number.isFinite(x0)) return viewBox;
   return `${x0} ${y0} ${x1 - x0} ${y1 - y0}`;
 }
 
@@ -516,12 +696,22 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         gez(cocuk, donusum, stroke, fill);
         continue;
       }
+      const matris = donusum ? donusumMatrisi(donusum) : null;
       if (ad === "text") {
         const metin = cocuk.textContent?.trim().replace(/\s+/g, " ").slice(0, 80);
         if (!metin) continue;
         const anchor = cocuk.getAttribute("text-anchor");
-        const x = sayi(cocuk, "x");
-        const y = sayi(cocuk, "y");
+        let x = sayi(cocuk, "x");
+        let y = sayi(cocuk, "y");
+        let boyut = sayi(cocuk, "font-size", 20);
+        let yaziDonusumu = donusum || undefined;
+        if (matris && Math.abs(matris[1]) < 1e-6 && Math.abs(matris[2]) < 1e-6) {
+          x = matris[0] * x + matris[4];
+          y = matris[3] * y + matris[5];
+          boyut *= Math.abs(matris[3]);
+          yaziDonusumu = undefined;
+        }
+        boyut = aralikta(boyut, 10, 48);
         const tekrar = ogeler.some(
           (o) => o.tur === "yazi" && etiketNormal(o.metin) === etiketNormal(metin) && Math.hypot(o.x - x, o.y - y) < 60,
         );
@@ -531,10 +721,11 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
           x,
           y,
           metin,
-          boyut: Math.max(10, Math.min(48, sayi(cocuk, "font-size", 20))),
+          boyut,
+          ozgunBoyut: boyut,
           renk: fill && fill !== "none" ? fill : "#1e1e1e",
           hizala: anchor === "middle" || anchor === "end" ? anchor : "start",
-          donusum: donusum || undefined,
+          donusum: yaziDonusumu,
         });
         continue;
       }
@@ -562,7 +753,9 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
       }
       if (cizim) {
         const kapali = ad === "rect" || ad === "circle" || ad === "ellipse" || ad === "polygon";
-        ogeler.push({ tur: "sekil", cizim, donusum: donusum || undefined, kapali, sinir: cizimSiniri(cizim) });
+        const sonCizim = matris ? cizimDonustur(cizim, matris) : cizim;
+        const sekilDonusumu = matris ? undefined : donusum || undefined;
+        ogeler.push({ tur: "sekil", cizim: sonCizim, donusum: sekilDonusumu, kapali, sinir: cizimSiniri(sonCizim) });
       }
     }
   };
@@ -570,14 +763,56 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
   return { viewBox, ogeler };
 }
 
-function DiyagramBlok({ parcalar, tumSvgler, blokId }: { parcalar: Parca<DiyagramAksiyonu>[]; tumSvgler: string[]; blokId: string }) {
+const DIYAGRAM_MAKS_OLCEK = 1.25;
+const YAZI_KADEMESI = { normal: 20, buyuk: 26 };
+
+function diyagramHazirla(parcalar: DiyagramOgesi[][], ilkViewBox: string, kutuW: number, kutuH: number) {
+  const yazilar = parcalar.flat().filter((o): o is Extract<DiyagramOgesi, { tur: "yazi" }> => o.tur === "yazi");
+  let viewBox = diyagramDuzenle(parcalar, ilkViewBox);
+  for (let tur = 0; tur < 2; tur++) {
+    const v = viewBoxCoz(viewBox);
+    const olcek = Math.min(DIYAGRAM_MAKS_OLCEK, kutuW / v.w, kutuH / v.h);
+    for (const t of yazilar) {
+      const ekrandaki = t.ozgunBoyut * olcek;
+      t.boyut = (ekrandaki >= 25 ? YAZI_KADEMESI.buyuk : YAZI_KADEMESI.normal) / olcek;
+    }
+    const sirali = [...yazilar].sort((a, b) => a.y - b.y);
+    for (let i = 0; i < sirali.length; ) {
+      let j = i + 1;
+      while (j < sirali.length && sirali[j].y - sirali[i].y < 20) j++;
+      const ortak = Math.min(...sirali.slice(i, j).map((t) => t.boyut));
+      for (let k = i; k < j; k++) sirali[k].boyut = ortak;
+      i = j;
+    }
+    viewBox = diyagramDuzenle(parcalar, ilkViewBox);
+  }
+  const v = viewBoxCoz(viewBox);
+  if (Math.min(kutuW / v.w, kutuH / v.h) > DIYAGRAM_MAKS_OLCEK) {
+    const w = kutuW / DIYAGRAM_MAKS_OLCEK;
+    const h = kutuH / DIYAGRAM_MAKS_OLCEK;
+    viewBox = `${v.x + v.w / 2 - w / 2} ${v.y} ${w} ${h}`;
+  }
+  return viewBox;
+}
+
+function DiyagramBlok({
+  parcalar,
+  tumSvgler,
+  blokId,
+  kutu,
+}: {
+  parcalar: Parca<DiyagramAksiyonu>[];
+  tumSvgler: string[];
+  blokId: string;
+  kutu: Blok["kutu"];
+}) {
   const svgAnahtari = tumSvgler.join("\u0000");
   const { cozumler, viewBox } = useMemo(() => {
     const c = svgAnahtari.split("\u0000").map((svg, i) => diyagramCoz(svg, `${blokId}-${i}`));
-    return { cozumler: c, viewBox: diyagramDuzenle(c.map((x) => x.ogeler), c[0]?.viewBox ?? VARSAYILAN_VB) };
-  }, [blokId, svgAnahtari]);
+    return { cozumler: c, viewBox: diyagramHazirla(c.map((x) => x.ogeler), c[0]?.viewBox ?? VARSAYILAN_VB, kutu.w, kutu.h) };
+  }, [blokId, svgAnahtari, kutu.w, kutu.h]);
   return (
-    <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" overflow="hidden">
+    <svg viewBox={viewBox} preserveAspectRatio="xMidYMin meet" overflow="hidden">
       {cozumler.slice(0, parcalar.length).map((c, ai) =>
         c.ogeler.map((o, j) => {
           const p = parcaIlerlemesi(parcalar[ai].p, j, c.ogeler.length);
@@ -620,18 +855,18 @@ function useLatex(latex: string | undefined, renk: string) {
   return sonuc?.anahtar === anahtar ? sonuc.g : null;
 }
 
-const NOT_BOYUT = 19;
-const NOT_SATIR = 27;
+const NOT_BOYUT = 22;
+const NOT_SATIR = 31;
 const LATEX_H = 60;
 const SATIR_BOSLUK = 18;
 
 function satirlaraBol(metin: string, genislik: number, boyut: number) {
-  const maks = Math.max(8, Math.floor((genislik - 24) / (boyut * 0.56)));
+  const maks = Math.max(boyut * 4, genislik - 24);
   const satirlar: string[] = [];
   let mevcut = "";
   for (const kelime of metin.split(/\s+/).filter(Boolean)) {
     if (!mevcut) mevcut = kelime;
-    else if ((mevcut + " " + kelime).length <= maks) mevcut += " " + kelime;
+    else if (yaziGenisligi(`${mevcut} ${kelime}`, boyut) <= maks) mevcut += " " + kelime;
     else {
       satirlar.push(mevcut);
       mevcut = kelime;
@@ -665,7 +900,7 @@ function FormulSatiri({ aksiyon, p, y, genislik, notlar }: { aksiyon: FormulAksi
   const renk = renkCoz(aksiyon.renk, "#7048e8");
   const g = useLatex(aksiyon.latex, renk);
   const id = `f${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const olcek = g ? Math.min(1, (genislik - 24) / g.genislik, LATEX_H / g.yukseklik) : 1;
+  const olcek = g ? Math.min(1.2, (genislik - 24) / g.genislik, LATEX_H / g.yukseklik) : 1;
   const fw = g ? g.genislik * olcek : 0;
   const fh = g ? g.yukseklik * olcek : 0;
   const latexP = aksiyon.not ? sinirla(p * 1.6) : p;
@@ -715,10 +950,10 @@ function FormulBlok({ parcalar, tumAksiyonlar, kutu }: { parcalar: Parca<FormulA
   );
 }
 
-function aksiyonParcalari(sahne: Sahne, vurusSira: number, p: number) {
+function aksiyonParcalari(sahne: Sahne, vurusSira: number, p: number, katman: number) {
   const gruplar = new Map<string, Parca[]>();
   sahne.vuruslar.forEach((v, vi) => {
-    if (vi > vurusSira) return;
+    if (vi > vurusSira || vurusKatmani(v) !== katman) return;
     const n = v.aksiyonlar.length;
     v.aksiyonlar.forEach((a, k) => {
       if (a.tip === "vurgula") return;
@@ -732,6 +967,10 @@ function aksiyonParcalari(sahne: Sahne, vurusSira: number, p: number) {
   return gruplar;
 }
 
+const BASLIK_Y = 38;
+const BASLIK_MAKS = 30;
+const BUYUK_BASLIK_MAKS = 64;
+
 type SahneProps = {
   sahne: Sahne;
   sira: number;
@@ -741,23 +980,44 @@ type SahneProps = {
 };
 
 const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilTiklama }: SahneProps) {
-  const bloklar = useMemo(() => yerlesim(sahne), [sahne]);
+  const katman = aktifKatman(sahne, vurusSira);
+  const bloklar = useMemo(() => yerlesim(sahne, { katman }), [sahne, katman]);
   const tumAksiyonlar = useMemo(() => {
     const m = new Map<string, Aksiyon[]>();
     for (const v of sahne.vuruslar) {
+      if (vurusKatmani(v) !== katman) continue;
       for (const a of v.aksiyonlar) {
         if (a.tip === "vurgula") continue;
         m.set(a.gorsel, [...(m.get(a.gorsel) ?? []), a]);
       }
     }
     return m;
-  }, [sahne]);
-  const parcalar = aksiyonParcalari(sahne, vurusSira, p);
-  const baslikMetni = sahne.ek ? sahne.baslik : `${sira + 1}. ${sahne.baslik}`;
-  const baslikBoyut = Math.min(30, (ALAN_W - 20) / Math.max(1, baslikMetni.length * 0.56));
+  }, [sahne, katman]);
+  const parcalar = aksiyonParcalari(sahne, vurusSira, p, katman);
+  const fotograf = katmanFotografi(sahne, katman);
+
+  const sonVurus = Math.min(vurusSira, sahne.vuruslar.length - 1);
+  const icerikVar = sahne.vuruslar.some(
+    (v, i) => i <= sonVurus && vurusKatmani(v) === katman && v.aksiyonlar.some((a) => a.tip !== "vurgula"),
+  );
+  const sadeceBaslik = !icerikVar && !fotograf;
+  const katmaninIlkVurusu = sahne.vuruslar.findIndex((v) => vurusKatmani(v) === katman) === vurusSira;
+  const baslikYaziliyor = sadeceBaslik && katmaninIlkVurusu;
+  const baslikP = baslikYaziliyor ? sinirla(p * 1.8) : 1;
+  const cizgiP = baslikYaziliyor ? sinirla((p * 1.8 - 1) * 3) : 1;
+
+  const anaBaslik = sahne.ek ? sahne.baslik : `${sira + 1}. ${sahne.baslik}`;
+  const baslikMetni = etiketBirlestir(anaBaslik, katman > 0 ? sahne.katmanlar?.[katman - 1]?.baslik : undefined);
+  const birim = Math.max(1, yaziGenisligi(baslikMetni, 1));
+  const baslikBoyut = Math.min(BASLIK_MAKS, (ALAN_W - 20) / birim);
+  const baslikW = birim * baslikBoyut;
+  const buyutme = Math.min(BUYUK_BASLIK_MAKS, (ALAN_W - 120) / birim) / baslikBoyut;
+  const baslikDonusumu = sadeceBaslik
+    ? `translate(${(ALAN_W - baslikW * buyutme) / 2}px, ${ALAN_H / 2 + baslikBoyut * buyutme * 0.3}px) scale(${buyutme})`
+    : `translate(0px, ${BASLIK_Y}px) scale(1)`;
   const baslikCizgi = useMemo(
-    () => gen.line(0, 50, Math.min(ALAN_W, 40 + baslikMetni.length * baslikBoyut * 0.56), 54, { seed: tohum(sahne.baslik), stroke: "#1971c2", strokeWidth: 2.5, roughness: 1.1 }),
-    [sahne.baslik, baslikMetni, baslikBoyut],
+    () => gen.line(0, 12, Math.min(ALAN_W, baslikW + 24), 16, { seed: tohum(sahne.baslik), stroke: "#1971c2", strokeWidth: 2.5, roughness: 1.1 }),
+    [sahne.baslik, baslikW],
   );
   const kirpId = `t${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
@@ -770,42 +1030,45 @@ const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilT
       <rect x={-24} y={-14} width={ALAN_W + 48} height={ALAN_H + 28} rx={18} fill="#ffffff" stroke="#adb5bd" strokeWidth={3} />
       <rect x={-18} y={-8} width={ALAN_W + 36} height={ALAN_H + 16} rx={13} fill="none" stroke="#e9ecef" strokeWidth={1.5} />
       <g clipPath={`url(#${kirpId})`}>
-      <Yazi x={0} y={38} metin={baslikMetni} boyut={baslikBoyut} renk="#1971c2" p={1} />
-      <Kaba cizim={baslikCizgi} p={1} />
-      {[...bloklar.values()].map((b) => {
-        if (b.tip === "fotograf") {
-          return sahne.fotograf ? (
-            <g key={b.id} data-blok={b.id}>
-              <image href={sahne.fotograf} x={b.kutu.x} y={b.kutu.y} width={b.kutu.w} height={b.kutu.h} preserveAspectRatio="xMidYMid meet" />
-            </g>
-          ) : null;
-        }
-        const liste = parcalar.get(b.id);
-        if (!liste?.length) return null;
-        const ic =
-          b.tip === "turkiye_haritasi" ? (
-            <HaritaBlok parcalar={liste as Parca<HaritaAksiyonu>[]} ilTiklama={ilTiklama} />
-          ) : b.tip === "matematik_grafigi" ? (
-            <GrafikBlok parcalar={liste as Parca<GrafikAksiyonu>[]} blokId={`${sira}-${b.id}`} />
-          ) : b.tip === "geometri_ve_diyagram" ? (
-            <DiyagramBlok
-              parcalar={liste as Parca<DiyagramAksiyonu>[]}
-              tumSvgler={((tumAksiyonlar.get(b.id) ?? []) as DiyagramAksiyonu[]).map((a) => a.svg)}
-              blokId={`${sira}-${b.id}`}
-            />
-          ) : (
-            <FormulBlok
-              parcalar={liste as Parca<FormulAksiyonu>[]}
-              tumAksiyonlar={(tumAksiyonlar.get(b.id) ?? []) as FormulAksiyonu[]}
-              kutu={b.kutu}
-            />
+        <g className="tahta-baslik" style={{ transform: baslikDonusumu }}>
+          <Yazi x={0} y={0} metin={baslikMetni} boyut={baslikBoyut} renk="#1971c2" p={baslikP} />
+          <Kaba cizim={baslikCizgi} p={cizgiP} />
+        </g>
+        {[...bloklar.values()].map((b) => {
+          if (b.tip === "fotograf") {
+            return fotograf ? (
+              <g key={b.id} data-blok={b.id}>
+                <image href={fotograf} x={b.kutu.x} y={b.kutu.y} width={b.kutu.w} height={b.kutu.h} preserveAspectRatio="xMidYMid meet" />
+              </g>
+            ) : null;
+          }
+          const liste = parcalar.get(b.id);
+          if (!liste?.length) return null;
+          const ic =
+            b.tip === "turkiye_haritasi" ? (
+              <HaritaBlok parcalar={liste as Parca<HaritaAksiyonu>[]} ilTiklama={ilTiklama} kutu={b.kutu} />
+            ) : b.tip === "matematik_grafigi" ? (
+              <GrafikBlok parcalar={liste as Parca<GrafikAksiyonu>[]} blokId={`${sira}-${b.id}`} kutu={b.kutu} />
+            ) : b.tip === "geometri_ve_diyagram" ? (
+              <DiyagramBlok
+                parcalar={liste as Parca<DiyagramAksiyonu>[]}
+                tumSvgler={((tumAksiyonlar.get(b.id) ?? []) as DiyagramAksiyonu[]).map((a) => a.svg)}
+                blokId={`${sira}-${b.id}`}
+                kutu={b.kutu}
+              />
+            ) : (
+              <FormulBlok
+                parcalar={liste as Parca<FormulAksiyonu>[]}
+                tumAksiyonlar={(tumAksiyonlar.get(b.id) ?? []) as FormulAksiyonu[]}
+                kutu={b.kutu}
+              />
+            );
+          return (
+            <svg key={b.id} data-blok={b.id} x={b.kutu.x} y={b.kutu.y} width={b.kutu.w} height={b.kutu.h} overflow="hidden">
+              {ic}
+            </svg>
           );
-        return (
-          <svg key={b.id} data-blok={b.id} x={b.kutu.x} y={b.kutu.y} width={b.kutu.w} height={b.kutu.h} overflow="visible">
-            {ic}
-          </svg>
-        );
-      })}
+        })}
       </g>
     </g>
   );

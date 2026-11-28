@@ -2,7 +2,7 @@
 
 import { CaptureUpdateAction, exportToCanvas, getCommonBounds } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from "@excalidraw/excalidraw/types";
-import type { GorselTipi, Sahne } from "@/lib/types";
+import { vurusKatmani, type GorselTipi, type Sahne } from "@/lib/types";
 
 export const ALAN_W = 1000;
 export const ALAN_H = 640;
@@ -32,12 +32,20 @@ export const FOTO_BLOK = "__foto";
 
 export const SAHNE_UST_BOSLUK = 10;
 
-export function yerlesim(sahne: Sahne, { topInset = SAHNE_UST_BOSLUK }: { topInset?: number } = {}): Map<string, Blok> {
+export function katmanFotografi(sahne: Sahne, katman: number) {
+  return katman > 0 ? sahne.katmanlar?.[katman - 1]?.fotograf ?? null : sahne.fotograf ?? null;
+}
+
+export function yerlesim(
+  sahne: Sahne,
+  { topInset = SAHNE_UST_BOSLUK, katman = 0 }: { topInset?: number; katman?: number } = {},
+): Map<string, Blok> {
   const icerikY = ICERIK_Y + topInset;
   const icerikH = ICERIK_H - topInset;
   const sirali: { id: string; tip: GorselTipi }[] = [];
-  if (sahne.fotograf) sirali.push({ id: FOTO_BLOK, tip: "fotograf" });
+  if (katmanFotografi(sahne, katman)) sirali.push({ id: FOTO_BLOK, tip: "fotograf" });
   for (const v of sahne.vuruslar) {
+    if (vurusKatmani(v) !== katman) continue;
     for (const a of v.aksiyonlar) {
       if (a.tip !== "vurgula" && !sirali.some((b) => b.id === a.gorsel)) sirali.push({ id: a.gorsel, tip: a.tip });
     }

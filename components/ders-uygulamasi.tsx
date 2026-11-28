@@ -261,12 +261,14 @@ export default function DersUygulamasi() {
           setHata(veri.hata);
           return false;
         }
-        oynatici.ekSahneOynat({
-          baslik: fotograf ? "Adım adım çözüm" : "Öğretmenin açıklaması",
-          miniSoru: null,
-          vuruslar: veri.vuruslar,
-          fotograf: fotograf?.dataURL ?? null,
-        });
+        oynatici.cevabiAnlat(
+          {
+            baslik: fotograf ? "Adım adım çözüm" : "Öğretmenin açıklaması",
+            vuruslar: veri.vuruslar,
+            fotograf: fotograf?.dataURL ?? null,
+          },
+          ogretmenModu === "sokratik" ? "bekle" : "gec",
+        );
         return true;
       } catch {
         setHata("Soru gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.");

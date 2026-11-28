@@ -61,7 +61,18 @@ export type Vurus = {
   id: string;
   soz: string;
   aksiyonlar: Aksiyon[];
+  katman?: number;
 };
+
+export type SahneKatmani = { baslik: string; fotograf?: string | null };
+
+export type CevapSonrasi = "gec" | "bekle";
+
+export const vurusKatmani = (v: Vurus | undefined) => v?.katman ?? 0;
+
+export function aktifKatman(sahne: Sahne, vurusSira: number) {
+  return vurusKatmani(sahne.vuruslar[Math.min(vurusSira, sahne.vuruslar.length - 1)]);
+}
 
 export type MiniGorev =
   | { tur: "il_tikla"; yonerge: string; dogruPlaka: number }
@@ -74,6 +85,8 @@ export type Sahne = {
   vuruslar: Vurus[];
   ek?: boolean;
   fotograf?: string | null;
+  katmanlar?: SahneKatmani[];
+  cevaplandi?: CevapSonrasi;
 };
 
 export type OgretmenModu = "anlatim" | "sokratik";
