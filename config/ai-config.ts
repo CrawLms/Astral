@@ -5,7 +5,7 @@ import "server-only";
 // böylece gizli anahtarı herkese açık bir repoya yazmak zorunda kalmazsınız.
 export const AI_AYARLARI = {
   baseUrl: "https://api.noxery.net/v1",
-  apiKey: "",
+  apiKey: "nox-565160dea3276d344adfd28db25c5ddedb40abe9fd643326",
   varsayilanModel: "gpt-6.1-sol",
   compat: {
     maxTokens: 16384,
