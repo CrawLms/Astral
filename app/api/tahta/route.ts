@@ -54,6 +54,12 @@ import type {
   ZamanOlayi,
 } from "@/lib/types";
 import { gorselKimlikleriniAyir } from "@/lib/types";
+import {
+  ILLUSTRASYON_PAKETI,
+  YEDEK_SEMA_GORSEL,
+  type IllustrasyonIstegiSahnesi,
+  type SahneIllustrasyonu,
+} from "@/lib/sahne-cesitlilik";
 
 export const maxDuration = 300;
 
@@ -64,10 +70,19 @@ const SEVIYE_ACIKLAMA: Record<Seviye, string> = {
   universite: "Üniversite öğrencisi: akademik terminoloji, ispat/gerekçe ve ileri bağlantılarla anlatım.",
 };
 
-const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ASTRA AI ÖNCELİK SIRASI — ÇOK ÖNEMLİ):
-- ASLA serbest çizim (freedraw) veya koordinatla elle şekil uydurma. Tahtaya yalnızca aşağıdaki YAPISAL GÖRSEL BLOKLARI "aksiyonlar" ile ekle.
-- Her aksiyonun "gorsel" alanı bir blok kimliğidir (ör. "geo1", "ak1", "f1"). Aynı kimliği sonraki vuruşlarda tekrar kullanınca o bloğa yeni parça/satır/olay eklenir. Bir sahnede en fazla 3 blok olsun; yerleşimi uygulama otomatik yapar (ana görsel solda, formul_ve_not sağda).
-- ÖNCELİK HİYERARŞİSİ (1 → 8 sırasıyla kontrol et; ilk uyan yapısal bloğu SEÇMEK ZORUNLUDUR — 1–7'den biri uyuyorsa ASLA 8 numara ham SVG yazma):
+const SVG_KURALLARI = `   SVG kuralları:
+   - viewBox='0 0 800 460'; tüm şekil ve yazılar x 40-760, y 40-420 içinde; tek tırnak kullan.
+   - İzinli etiketler: defs, marker, path, circle, ellipse, rect, line, polyline, polygon, text, g (script, style, foreignObject, image, iframe, on*, dış href YASAK).
+   - Oklar için <defs><marker id='ok' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 1 L10 5 L0 9 z' fill='#1e1e1e'/></marker></defs> tanımlayıp marker-end='url(#ok)' / marker-start='url(#ok)' kullan; elle ok üçgeni tekrarlama.
+   - Pastel dolgular (#e7f5ff, #fff3bf, #ebfbee, #fff0f6, #f3f0ff, #fff4e6), stroke='#1e1e1e', stroke-width='2-3', yardımcı çizgide stroke-dasharray='6 6'; etiketler 18-24 font-size, max ~28 karakter.
+   - Nesneleri tanınır biçimde çiz: basit ama gerçekçi siluetler (path ile gövde, kanat, yaprak, dağ, dalga, bina, gemi, çöp adam), zemin çizgisi ve gökyüzü/ufuk gibi bağlam ögeleri; her önemli parçayı kısa bir etiket ve gerekiyorsa okla adlandır.
+   - Hareket/süreç animasyonunda nesne+etiketi <g data-anim='...'> içine al: 'kay' (data-dx, data-dy, data-ivme='hizlan'|'yavasla'|'sabit'), 'yol' (data-yol='M0 0 ...', data-yonelim='evet'), 'gidipgel' (data-dx, data-dy), 'salin' (data-merkez='x y', data-aci), 'don' (data-merkez='x y', data-yon='-1'), 'nabiz', 'akis' (çizgi/tel üstünde akan kesik). Sabit yazılar <g> dışında kalsın; en fazla 2-3 animasyon grubu.`;
+
+const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ÇOK ÖNEMLİ):
+- Tahtaya çizimleri yalnızca aşağıdaki görsel bloklarla "aksiyonlar" içinde ekle. Ölçü/konum doğruluğu gereken içerikte (Türkiye haritası, fonksiyon grafiği, geometrik şekil, fen düzeneği) yapısal bloklar ZORUNLUDUR; konunun kendisini resmeden sahneye özel çizimler için 8) illustrasyon kullan.
+- Her aksiyonun "gorsel" alanı bir blok kimliğidir (ör. "geo1", "ak1", "il1", "f1"). Aynı kimliği sonraki vuruşlarda tekrar kullanınca o bloğa yeni parça/satır/olay/katman eklenir. Bir sahnede en fazla 3 blok olsun; yerleşimi uygulama otomatik yapar (ana görsel solda, formul_ve_not sağda).
+- SEÇİM: Önce içeriğin doğasına bak. Türkiye/il/bölge → 1; fonksiyon/grafik → 2; geometrik şekil → 3; kesin fen düzeneği (eğik düzlem, devre, optik, kuvvet, atom, tepkime kabı, hücre) → 7. Kronoloji → 5, çok ölçütlü karşılaştırma → 6, algoritma/soyut neden-sonuç zinciri → 4. Bunların dışında kalan ya da somut bir nesne, mekân, olay, canlı, doğa olayı, makine veya kişi anlatan HER sahnede 8) illustrasyon ile o sahneye özel bir resim çiz. Kalıp şablonu (ikon_izgarasi, piramit, venn, terazi, akis_semasi) içeriğe gerçekten uymuyorsa zorlama; illüstrasyon çiz.
+BLOKLAR:
 1) turkiye_haritasi (Türkiye, iller, bölgeler, coğrafi dağılım — ZORUNLU):
    {"tip":"turkiye_haritasi","gorsel":"h1","vurgulananIller":[{"plaka":6,"ad":"Ankara","renk":"#e03131","etiket":"Başkent"}],"bolgeRenkleri":{"ic-anadolu":"#fff3bf"},"baglantiOklari":[{"neredenPlaka":34,"nereyePlaka":6,"etiket":"göç"}]}
    Bölgeler: marmara, ege, akdeniz, ic-anadolu, karadeniz, dogu-anadolu, guneydogu-anadolu. İlk aksiyon boş da olabilir (temel haritayı çizer).
@@ -100,14 +115,10 @@ const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ASTRA AI ÖNCELİK SIRASI �
    - venn: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"venn","baslik":"Kümeler","kumeler":[{"ad":"A","elemanlar":["1","2"]},{"ad":"B","elemanlar":["2","3"]}],"kesisim":["2"],"evrensel":"E"}
    - ikon_izgarasi: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"ikon_izgarasi","baslik":"Adımlar","sutunSayisi":3,"ogeler":[{"ikon":"gunes","baslik":"Buharlaşma","altMetin":"Isı"},{"ikon":"bulut","baslik":"Yoğuşma"}]}
      İzinli ikon adları: gunes, bulut, yagmur, dunya, dag, agac, yaprak, kalp, akciger, noron, dna, mikroskop, pil, ampul, direnc, anahtar, miknatis, disli, merdiven, kopru, kalkan, kitap, kalem, parsomen, saat, ev, bayrak, insan, terazi, beher, atom, damla, simsek, yildiz, termometre, pusula.
-8) geometri_ve_diyagram (Ham SVG — SON ÇARE! YALNIZCA yukarıdaki 1–7 yapısal blokların HİÇBİRİNE sığmayan özgün çizimler için: örn. şiir/dize kafiye işaretlemesi, cümle ögeleri alt çizgisi, özel harita/organ kesiti, sarkaç/atış animasyonu, çöp adam/konuşma balonu):
-   {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
-   Ham SVG kuralları:
-   - viewBox='0 0 800 460'; tüm şekil ve yazılar x 40-760, y 40-420 içinde; tek tırnak kullan.
-   - İzinli etiketler: defs, marker, path, circle, ellipse, rect, line, polyline, polygon, text, g (script, style, foreignObject, image, iframe, on*, dış href YASAK).
-   - Oklar için <defs><marker id='ok' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 1 L10 5 L0 9 z' fill='#1e1e1e'/></marker></defs> tanımlayıp marker-end='url(#ok)' / marker-start='url(#ok)' kullan; elle ok üçgeni tekrarlama.
-   - Pastel dolgular (#e7f5ff, #fff3bf, #ebfbee, #fff0f6, #f3f0ff, #fff4e6), stroke='#1e1e1e', stroke-width='2-3', yardımcı çizgide stroke-dasharray='6 6'; etiketler 18-24 font-size, max ~28 karakter.
-   - Hareket/süreç animasyonunda nesne+etiketi <g data-anim='...'> içine al: 'kay' (data-dx, data-dy, data-ivme='hizlan'|'yavasla'|'sabit'), 'yol' (data-yol='M0 0 ...', data-yonelim='evet'), 'gidipgel' (data-dx, data-dy), 'salin' (data-merkez='x y', data-aci), 'don' (data-merkez='x y', data-yon='-1'), 'nabiz', 'akis' (çizgi/tel üstünde akan kesik). Sabit yazılar <g> dışında kalsın; en fazla 2-3 animasyon grubu.
+8) illustrasyon (SAHNEYE ÖZEL ÇİZİM — konuyu resmet: olay yeri, savaş meydanı, deney ortamı, canlı/organ kesiti, doğa olayı, manzara, makine, karakterler ve konuşma balonları, şiirin imgesi, dize/cümle işaretleme, sayı doğrusu, sarkaç/atış animasyonu):
+   {"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
+   KATMAN KATMAN KUR: aynı "gorsel" kimliğiyle sonraki vuruşlarda YENİ bir <svg> katmanı gönder; her katman YALNIZCA o vuruşta eklenen parçaları içerir ve öncekilerin üstüne çizilir (ilk katman zemin + ana nesne, sonrakiler etiket, ok, detay, hareket). Önceki katmanları tekrar gönderme.
+${SVG_KURALLARI}
 9) formul_ve_not (Formül ve kısa el yazısı not — sağ yardımcı alan):
    {"tip":"formul_ve_not","gorsel":"f1","latex":"F = m \\\\cdot a","not":"kısa el yazısı not","renk":"formul","altiCizili":true}
    "latex" içine SADECE matematik yaz (JSON'da \\\\ kaçışı ile); düz açıklama "not" alanına gider; "not" içine renk adı yazma.
@@ -117,12 +128,19 @@ YAZI ALANLARI: "not", "etiket", "altEtiket", "ad", "baslik", "aciklama", "satirl
 
 const YARATICI_TAHTA = `YARATICI TAHTA ANLATIMI (HER DERSTE ZORUNLU):
 - Her ders görselleştirilir. Sözel derslerde de (edebiyat, tarih, felsefe, din, dil bilgisi, yabancı dil) asla yalnızca yazıyla anlatma; her ana fikrin tahtada bir görsel karşılığı olsun.
-- Tahtayı boş bırakma: sahnenin konuyu tanıtan ilk vuruşu hariç HER vuruşta en az bir aksiyon olsun (yeni parça, satır, düğüm, olay, not veya vurgula). "Bak", "gördüğün gibi", "burada", "tahtada" diyorsan o anda tahtada gerçekten bir çizim olmalı. Her aksiyonun "tip" ve "gorsel" alanını mutlaka yaz; farklı tipteki bloklara AYNI "gorsel" kimliğini verme (ör. geometri "geo1", not "f1"). Her sahnede en az bir ana görsel blok (turkiye_haritasi, matematik_grafigi, geometri, akis_semasi, zaman_cizelgesi, tablo, hazir_sahne veya son çare geometri_ve_diyagram) olsun. Sahneyi yalnızca formul_ve_not ile geçirme.
+- Tahtayı boş bırakma: sahnenin konuyu tanıtan ilk vuruşu hariç HER vuruşta en az bir aksiyon olsun (yeni parça, satır, düğüm, olay, not veya vurgula). "Bak", "gördüğün gibi", "burada", "tahtada" diyorsan o anda tahtada gerçekten bir çizim olmalı. Her aksiyonun "tip" ve "gorsel" alanını mutlaka yaz; farklı tipteki bloklara AYNI "gorsel" kimliğini verme (ör. geometri "geo1", not "f1"). Her sahnede en az bir ana görsel blok (turkiye_haritasi, matematik_grafigi, geometri, akis_semasi, zaman_cizelgesi, tablo, hazir_sahne veya illustrasyon) olsun. Sahneyi yalnızca formul_ve_not ile geçirme.
 - Adım adım kur: aynı "gorsel" kimliğine sonraki vuruşlarda yeni nokta, yükseklik, düğüm, olay, satır veya SVG katmanı ekleyerek resmi anlatımla birlikte büyüt.
-- Soyutu yapısal şablonlarla somutlaştır: karşıtlık için terazi, hiyerarşi için piramit, ortak/farklı özellikler için venn, süreç/neden-sonuç için akis_semasi, dönemler için zaman_cizelgesi, kıyas için tablo, somut simgeler için ikon_izgarasi (merdiven, kopru, kalkan, disli, ampul, kitap...) kullan.
-- Yalnızca yapısal bloklara sığmayan özel anlatımlarda (ör. şiir kafiye/ölçü işaretleme, cümle ögeleri, konuşma balonlu diyalog) son çare geometri_ve_diyagram seç:
-  v1 dizeler → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><rect x='60' y='60' width='500' height='270' rx='14' fill='#fff9db' stroke='#1e1e1e' stroke-width='2'/><text x='90' y='120' font-size='22' fill='#1e1e1e'>Ben yürürüm yane yane</text><text x='90' y='180' font-size='22' fill='#1e1e1e'>Aşk boyadı beni kane</text><text x='90' y='240' font-size='22' fill='#1e1e1e'>Ne âkilem ne divane</text><text x='90' y='300' font-size='22' fill='#1e1e1e'>Gel gör beni aşk neyledi</text></svg>"}
-  v2 kafiye → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><circle cx='640' cy='112' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='120' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='172' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='180' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='232' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='240' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='292' r='22' fill='#e7f5ff' stroke='#1971c2' stroke-width='2'/><text x='640' y='300' text-anchor='middle' font-size='22' fill='#1971c2'>b</text></svg>"}`;
+- SAHNEYE ÖZEL ÇİZİM VE ÇEŞİTLİLİK (ZORUNLU):
+  • Her sahnenin ana görseli O SAHNENİN konusuna özel olsun; öğrenci tahtaya bakınca hangi konunun anlatıldığını resimden anlayabilmeli.
+  • Art arda iki sahnede aynı ana blok tipini veya aynı hazir_sahne şablonunu kullanma (içeriğin zorunlu kıldığı harita, grafik, geometri ve fen düzenekleri hariç).
+  • ikon_izgarasi, piramit, venn ve terazi şablonlarının her birini bir derste EN FAZLA BİR KEZ kullan; akis_semasi en fazla iki sahnede olsun.
+  • Sahnelerin en az yarısında illustrasyon bulunsun; sözel derslerde de (tarihî olayın mekânı, şiirin imgesi, hikâyenin karakterleri, felsefi düşünce deneyinin sahnesi).
+  • Bir illüstrasyonu başka sahnede renk veya etiket değiştirerek tekrar etme; her illüstrasyonun nesneleri ve kompozisyonu farklı olsun.
+- Soyutu somutlaştır: karşıtlık için terazi, hiyerarşi için piramit, ortak/farklı özellikler için venn, dönemler için zaman_cizelgesi, kıyas için tablo; ama konu somut bir şeyse önce onu illustrasyon ile resmet.
+- İllüstrasyon örneği (fotosentez; aynı "il1" kimliğiyle katman katman):
+  v2 yaprak ve güneş → {"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'><line x1='60' y1='400' x2='740' y2='400' stroke='#1e1e1e' stroke-width='2'/><circle cx='130' cy='110' r='46' fill='#fff3bf' stroke='#f08c00' stroke-width='3'/><path d='M320 390 Q380 150 600 170 Q590 360 320 390 Z' fill='#ebfbee' stroke='#2f9e44' stroke-width='3'/><path d='M320 390 L570 200' stroke='#2f9e44' stroke-width='2'/><text x='470' y='430' text-anchor='middle' font-size='22' fill='#2f9e44'>Yaprak</text><text x='130' y='190' text-anchor='middle' font-size='20' fill='#f08c00'>Güneş</text></svg>"}
+  v3 ışık ve su → {"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'><defs><marker id='ok' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 1 L10 5 L0 9 z' fill='#f08c00'/></marker></defs><g data-anim='akis'><path d='M175 140 L390 260' stroke='#f08c00' stroke-width='3' stroke-dasharray='10 8' marker-end='url(#ok)'/></g><text x='250' y='170' font-size='20' fill='#f08c00'>Işık enerjisi</text><path d='M250 400 L360 340' stroke='#1971c2' stroke-width='3' marker-end='url(#ok)'/><text x='170' y='380' font-size='20' fill='#1971c2'>H₂O</text></svg>"}
+  v4 gaz alışverişi → {"tip":"illustrasyon","gorsel":"il1","svg":"<svg viewBox='0 0 800 460'><defs><marker id='ok' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 1 L10 5 L0 9 z' fill='#1e1e1e'/></marker></defs><path d='M720 110 L590 190' stroke='#1e1e1e' stroke-width='3' marker-end='url(#ok)'/><text x='680' y='90' font-size='20'>CO₂ girer</text><path d='M600 280 L720 330' stroke='#2f9e44' stroke-width='3' marker-end='url(#ok)'/><text x='640' y='370' font-size='20' fill='#2f9e44'>O₂ çıkar</text></svg>"}`;
 
 const OGRETMEN_KIMLIGI = `KİMLİĞİN: Konusuna hâkim, sabırlı, sıcak ve güven veren deneyimli bir Türk öğretmensin. Karşında tek bir öğrenci var; ona doğrudan "sen" diye hitap ederek gerçek bir sınıf öğretmeni gibi ders anlatırsın. Bir yapay zekâ, asistan veya sunucu gibi değil, öğretmen gibi konuşursun.`;
 
@@ -145,7 +163,7 @@ const CIZIM_STILI = `ÖĞRETMEN ÇİZİM STİLİ (gerçek bir öğretmenin tahta
 - Sahne başlığını uygulama OTOMATİK yazar: sadece başlığın tanıtıldığı vuruşta başlık tahtanın ortasına büyük yazılır, ilk çizim gelince başlık yukarı kayar. Bu yüzden başlığı formul_ve_not veya başka blokların içinde ASLA tekrar yazma. Sahnenin ilk vuruşu konuyu tanıtıyorsa "aksiyonlar": [] bırak.
 - Yerleşim düzenini bloklar otomatik sağlar; farklı bloklar arasında renk kodlamasını tutarlı tut: yeni terim/tanım "baslik", formül "formul", dikkat/tuzak/sık hata "vurgu", sonuç/cevap "sonuc", ara adımlar "normal". Aynı kavram ders boyunca hep aynı renkte kalsın.
 - Bir vuruşta tek fikir: bir formül satırı, bir düğüm/bağlantı, bir olay kartı, bir kuvvet oku veya bir değerin yerine konması. Çözümü satır satır, her satırda tek işlem yaparak yaz; ara adımı atlama.
-- İlişkileri akis_semasi, kıyasları tablo, evre/tarihleri zaman_cizelgesi, geometrik şekilleri geometri, fen düzenekleri ve metaforları hazir_sahne ile kur.
+- İlişkileri akis_semasi, kıyasları tablo, evre/tarihleri zaman_cizelgesi, geometrik şekilleri geometri, fen düzenekleri ve metaforları hazir_sahne ile kur; konunun kendisini (nesne, mekân, olay, canlı, kişi) illustrasyon ile resmet.
 - Önemli yere dönerken "vurgula" aksiyonunu kullan; sonucu "sonuc" renginde ve altı çizili yaz.
 - Tahtanın sınırları vardır: bir formul_ve_not bloğunda en fazla 6 satır olsun, notlar kısa (en fazla ~12 kelime) tutulsun; fazlası için yeni sahneye geç.`;
 
@@ -211,6 +229,21 @@ ${GORSEL_KURALLARI}
 ${YARATICI_TAHTA}
 YALNIZCA şu JSON'u döndür:
 {"aciklama":"Kısa özet","vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}`;
+
+const ILLUSTRASYON_TALIMATI = `Sen ders kitaplarına ve beyaz tahtaya çizim yapan usta bir eğitim illüstratörüsün. Bir öğretmenin hazır ders anlatımındaki bazı sahnelerin tahta çizimleri birbirini tekrar ediyor (hep aynı ikon ızgarası/kavram şeması). Her sahne için O SAHNENİN konusunu resmeden, sahneye özel bir illüstrasyon çiz.
+Her sahne için öğretmenin vuruş vuruş söylediği sözler verilir. İllüstrasyonu bu sözlerle eş zamanlı, KATMAN KATMAN kur:
+- Her katman bir vuruşa bağlanır ("vurus": vuruş id) ve o vuruşta söylenen şeyi gösterir; her katman yalnızca YENİ parçaları içerir, önceki katmanların üstüne çizilir. Önceki katmanları tekrar gönderme.
+- Konuyu tanıtan ilk vuruşu atla. İlk katman (genelde 2. vuruş) zemini ve ana nesneyi/mekânı kurar; sonraki katmanlar etiket, ok, detay, karakter, konuşma balonu veya hareket ekler. Bir sahnede 3-6 katman olsun.
+- Söylenmeyen şeyi çizme; öğretmen "bak", "burada" diyorsa o anda ilgili parça çizilmiş olsun.
+- Somut ve tanınır çiz: konunun gerçek nesnelerini, mekânlarını, canlılarını, olaylarını ve kişilerini basit ama gerçekçi siluetlerle resmet (ör. ordu çadırları ve tepeler, gemi ve liman, yaprak ve güneş, volkan kesiti, fabrika, köy evi, kalp odacıkları). Kutu-ok kavram şeması, ikon ızgarası veya tablo ÇİZME.
+- Her sahnenin kompozisyonu, nesneleri ve renk vurgusu diğer sahnelerden FARKLI olsun.
+- Tahtanın sağında öğretmenin formül/not alanı olabilir; illüstrasyon kendi alanını doldurur, sahne başlığını tekrar yazma.
+- Peygamberleri, sahabeleri ve kutsal kişileri ASLA insan figürü, yüz veya çöp adam olarak çizme.
+YAZI: <text> içine düz metin yaz; LaTeX, $ veya ^{ } yazma, Unicode kullan (x², H₂O, 30°, →).
+${SVG_KURALLARI}
+Her sahne için "sira" alanına o sahnenin başlığında verilen sira değerini AYNEN yaz ve sahneleri verilen sırayla döndür.
+YALNIZCA şu JSON'u döndür:
+{"cizimler":[{"sira":3,"katmanlar":[{"vurus":"v2","svg":"<svg viewBox='0 0 800 460'>...</svg>"}]}]}`;
 
 const TEST_TALIMATI = `Sen bir Türk öğretmensin. Verilen ünite metninden öğrencinin anlayıp anlamadığını ölçen TAM 3 adet çoktan seçmeli soru hazırla.
 Her sorunun 4 seçeneği olsun, yalnızca biri doğru olsun. Sorular ezber değil kavrama ölçsün.
@@ -974,6 +1007,11 @@ const TIP_ESLESME: Record<string, string> = {
   diyagram: "geometri_ve_diyagram",
   svg: "geometri_ve_diyagram",
   cizim: "geometri_ve_diyagram",
+  illustrasyon: "geometri_ve_diyagram",
+  illustration: "geometri_ve_diyagram",
+  resim: "geometri_ve_diyagram",
+  sahne_cizimi: "geometri_ve_diyagram",
+  ozel_cizim: "geometri_ve_diyagram",
   formul: "formul_ve_not",
   not: "formul_ve_not",
   yazi: "formul_ve_not",
@@ -1144,7 +1182,6 @@ const ANA_GORSEL_TIPLERI = new Set<Aksiyon["tip"]>([
   "geometri_ve_diyagram",
 ]);
 const YEDEK_NOT_GORSEL = "yedek_not";
-const YEDEK_SEMA_GORSEL = "yedek_sema";
 const MAKS_NOT_SATIRI = 6;
 const GIRIS_KALIBI =
   /^(?:bak|bakalım|dikkat et|dikkat|şimdi|peki|evet|harika|güzel|tamam|işte|öyleyse|o halde|hatırla|unutma|şuraya odaklan|fark ettin mi)[\s,!:.]+/iu;
@@ -1308,7 +1345,54 @@ type Govde =
       sonAnlatim?: string;
       miniSoru?: string | null;
     }
-  | { mode: "test"; model?: string; ders?: string; baslik?: string; metin?: string };
+  | { mode: "test"; model?: string; ders?: string; baslik?: string; metin?: string }
+  | { mode: "illustrasyon"; model?: string; seviye?: Seviye; ders?: string; uniteBaslik?: string; sahneler?: unknown };
+
+const MAKS_KATMAN = 6;
+
+function illustrasyonIstegiTemizle(ham: unknown): IllustrasyonIstegiSahnesi[] {
+  if (!Array.isArray(ham)) return [];
+  return ham
+    .slice(0, ILLUSTRASYON_PAKETI)
+    .flatMap((s): IllustrasyonIstegiSahnesi[] => {
+      const x = nesne(s);
+      const sira = x ? tamSayi(x.sira, 0, 200) : undefined;
+      if (!x || sira === undefined || !Array.isArray(x.vuruslar)) return [];
+      const vuruslar = x.vuruslar
+        .slice(0, 16)
+        .flatMap((v) => {
+          const o = nesne(v);
+          const id = o ? yazi(o.id, 30) : undefined;
+          return o && id ? [{ id, soz: (yazi(o.soz, 400) ?? "").replace(/\s+/g, " ") }] : [];
+        });
+      return vuruslar.length ? [{ sira, baslik: yazi(x.baslik, 60) ?? "Sahne", vuruslar }] : [];
+    });
+}
+
+function illustrasyonlariTemizle(ham: unknown, istek: IllustrasyonIstegiSahnesi[]): SahneIllustrasyonu[] {
+  if (!Array.isArray(ham)) return [];
+  const gecerli = new Map(istek.map((s) => [s.sira, new Set(s.vuruslar.map((v) => v.id))]));
+  const sonuc = new Map<number, SahneIllustrasyonu>();
+  for (const [i, c] of ham.entries()) {
+    const x = nesne(c);
+    const yazilan = x ? tamSayi(x.sira, 0, 200) : undefined;
+    // Model "sira" değerini bazen 0'dan yeniden numaralandırıyor; eşleşmezse istek sırasına göre eşle.
+    const sira = yazilan !== undefined && gecerli.has(yazilan) && !sonuc.has(yazilan) ? yazilan : istek[i]?.sira;
+    const idler = sira !== undefined ? gecerli.get(sira) : undefined;
+    if (!x || sira === undefined || !idler || sonuc.has(sira) || !Array.isArray(x.katmanlar)) continue;
+    const kullanilan = new Set<string>();
+    const katmanlar = x.katmanlar.flatMap((k) => {
+      const o = nesne(k);
+      const vurus = o ? yazi(o.vurus ?? o.id, 30) : undefined;
+      const svg = o ? svgTemizle(o.svg) : undefined;
+      if (!vurus || !svg || !idler.has(vurus) || kullanilan.has(vurus)) return [];
+      kullanilan.add(vurus);
+      return [{ vurus, svg }];
+    });
+    if (katmanlar.length) sonuc.set(sira, { sira, katmanlar: katmanlar.slice(0, MAKS_KATMAN) });
+  }
+  return [...sonuc.values()];
+}
 
 const base64 = (v?: string | null) => (v ?? "").replace(/^data:image\/[\w+.-]+;base64,/, "");
 const seviyeNotu = (s?: Seviye) => `\nÖğrenci seviyesi: ${SEVIYE_ACIKLAMA[s && s in SEVIYE_ACIKLAMA ? s : "lise"]} Dili, örnekleri ve derinliği buna göre ayarla.`;
@@ -1398,6 +1482,29 @@ export async function POST(req: Request) {
       const sorular = sorulariTemizle(jsonCikar<{ sorular?: unknown }>(text).sorular);
       if (sorular.length === 0) return Response.json({ hata: "Yapay zekâ test sorusu üretemedi. Tekrar deneyin." }, { status: 422 });
       return Response.json({ sorular });
+    }
+
+    if (govde.mode === "illustrasyon") {
+      const istek = illustrasyonIstegiTemizle(govde.sahneler);
+      if (istek.length === 0) return Response.json({ hata: "İllüstrasyon için sahne gerekli." }, { status: 400 });
+      const sahneMetinleri = istek
+        .map(
+          (s) =>
+            `### Sahne sira=${s.sira}: ${s.baslik}\n${s.vuruslar.map((v) => `${v.id}: ${v.soz || "(sessiz)"}`).join("\n")}`,
+        )
+        .join("\n\n");
+      const text = await sohbetTamamla(model, [
+        { role: "system", content: ILLUSTRASYON_TALIMATI + seviyeNotu(govde.seviye) + dersNotu(govde.ders) },
+        {
+          role: "user",
+          content: `${govde.uniteBaslik ? `Ünite: ${yazi(govde.uniteBaslik, 120)}\n` : ""}Aşağıdaki ${istek.length} sahnenin her biri için ayrı, sahneye özel illüstrasyon çiz.\n\n${sahneMetinleri}`,
+        },
+      ]);
+      console.log("[v0] illustrasyon ham:", text.slice(0, 1500));
+      (await import("node:fs")).writeFileSync("/tmp/ill-ham.txt", text);
+      const cizimler = illustrasyonlariTemizle(jsonCikar<{ cizimler?: unknown }>(text).cizimler, istek);
+      if (cizimler.length === 0) return Response.json({ hata: "İllüstrasyon üretilemedi." }, { status: 422 });
+      return Response.json({ cizimler });
     }
 
     return Response.json({ hata: "Bilinmeyen mod." }, { status: 400 });

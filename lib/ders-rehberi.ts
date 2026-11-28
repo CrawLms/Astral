@@ -7,33 +7,34 @@ const EDEBIYAT = `- Edebi dönemler ve akımlar: \`zaman_cizelgesi\` (yatay dön
 - Karşılaştırma (Divan–Halk, Tanzimat I–II, Servetifünun–Fecriati): \`tablo\` (ölçütler: dil, ölçü, nazım birimi, konu, temsilci) + ortak özellikler için \`hazir_sahne\` (\`sablon: "venn"\`).
 - Yazar–eser ilişkisi ve metin türleri ağacı: \`akis_semasi\` (kavram haritası veya ağaç şeması); tür/eser ögeleri için \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\`, \`kitap\`, \`kalem\`, \`parsomen\`).
 - Söz sanatları: tezat için \`hazir_sahne\` (\`sablon: "terazi"\`), olay örgüsü basamakları (serim–düğüm–doruk–çözüm) için \`akis_semasi\` veya \`hazir_sahne\` (\`sablon: "piramit"\`).
-- Şiir incelemesi ve dize üstünde kafiye/redif/ölçü işaretleme: yalnızca bu özel satır işaretlemesinde \`geometri_ve_diyagram\` kullan (dizeleri alt alta yaz; sağda kafiye harfini a/b/c renkli dairede, dize sonunda hece sayısını ve durakları "|" ile göster).
+- Şiirin/metnin imgesini, mekânını ve karakterlerini resmet: \`illustrasyon\` (ör. "Kaldırımlar" için gece sokağı ve fener, "Sessiz Gemi" için limandan ayrılan gemi, hikâyenin geçtiği köy evi).
+- Şiir incelemesi ve dize üstünde kafiye/redif/ölçü işaretleme: \`illustrasyon\` kullan (dizeleri alt alta yaz; sağda kafiye harfini a/b/c renkli dairede, dize sonunda hece sayısını ve durakları "|" ile göster).
 - Edebiyat dersinde kuralı ezberletme: kitaptaki örnek dizeyi veya metni tahtaya yaz, kuralı onun üzerinde işaretleyerek göster; her kavramdan sonra "Bu dizede hangi sanat var?" gibi bir uygulama sorusu sor ve dönemi tarihsel bağlamına bağla.`;
 
 const DIL_BILGISI = `- Ses olayları (ünlü düşmesi, ünsüz yumuşaması: önce → sonra), kök–ek ayrımı ve yapım/çekim ekleri: \`akis_semasi\` (\`yon: "LR"\` veya \`"TB"\`) ya da \`tablo\`.
 - Sözcük türleri, fiilimsiler ve cümle çeşitleri sınıflandırması: \`akis_semasi\` (ağaç şeması) ve \`tablo\` (örnek cümlelerle).
 - Paragraf yapısı (ana fikir–yardımcı fikirler): \`hazir_sahne\` (\`sablon: "piramit"\` veya \`akis_semasi\`).
 - Gerçek/mecaz anlam veya kavram ikilemleri: \`tablo\` veya \`hazir_sahne\` (\`sablon: "terazi"\`, \`"ikon_izgarasi"\`).
-- Cümle ögeleri (kelimelerin altına parantez, Ö/Y/N/DT/BT etiketleri ve yüklemden soru okları): bu satır-altı çözümlemede \`geometri_ve_diyagram\` (\`<defs>/<marker>\` oklarıyla) kullan.`;
+- Cümle ögeleri (kelimelerin altına parantez, Ö/Y/N/DT/BT etiketleri ve yüklemden soru okları): bu satır-altı çözümlemede \`illustrasyon\` (\`<defs>/<marker>\` oklarıyla) kullan.`;
 
 const TARIH = `- Kronoloji, çağlar, savaş/inkılap aşamaları: her uygun sahnede \`zaman_cizelgesi\` (tarih rozetleri ve olay kartları).
 - Neden → olay → sonuç zinciri: \`akis_semasi\` (\`yon: "LR"\` veya \`"TB"\`, sonuç düğümleri \`sonuc\` renginde).
 - Türkiye içi cepheler, kongreler, iller ve güzergâhlar: \`turkiye_haritasi\` (\`vurgulananIller\` ve \`baglantiOklari\`).
 - Antlaşma tarafları ve güç dengesi: \`hazir_sahne\` (\`sablon: "terazi"\`); maddeler ve dönem kıyasları için \`tablo\`; önemli kavram ögeleri için \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\` — \`parsomen\`, \`bayrak\`, \`kalkan\`).
 - Devlet ve toplum yapısı / yönetim hiyerarşisi: \`hazir_sahne\` (\`sablon: "piramit"\`).
-- Tarihî şahsiyetin konuşma balonlu sahnesi gibi özel anlatım gerektiğinde son çare olarak \`geometri_ve_diyagram\` kullan.`;
+- Olayın kendisini resmet: \`illustrasyon\` (savaş meydanında karşılıklı ordular ve tepeler, kongre salonu, kale/sur, liman ve gemiler, göç yolundaki kervan, matbaa, fabrika bacaları; tarihî şahsiyetin konuşma balonlu sahnesi).`;
 
 const COGRAFYA = `- Türkiye, iller, bölgeler, iklim/nüfus/tarım dağılımı: \`turkiye_haritasi\` (ZORUNLU).
 - Sıcaklık, yağış, nüfus eğrileri: \`matematik_grafigi\`; bölge/iklim/kayaç karşılaştırmaları: \`tablo\`.
-- Su döngüsü, kayaç döngüsü, rüzgâr/basınç neden-sonuç akışı: \`akis_semasi\` (\`akis: true\`) veya \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\` — \`gunes\`, \`bulut\`, \`yagmur\`, \`dunya\`, \`dag\`, \`agac\`).
+- Su döngüsü, kayaç döngüsü, rüzgâr/basınç: \`illustrasyon\` ile gerçek manzara çiz (deniz, güneş, buharlaşma okları, bulut, dağa düşen yağmur, akarsu); yalnızca soyut neden-sonuç zinciri için \`akis_semasi\`.
 - Atmosfer katmanları, toprak horizonları, nüfus piramidi: \`hazir_sahne\` (\`sablon: "piramit"\`).
-- Dünya'nın eksen eğikliği (23° 27'), mevsim konumları, fay/volkan/eş yükselti kesiti gibi özel çizimlerde \`geometri_ve_diyagram\` (\`don\`, \`gidipgel\` animasyonlarıyla) kullan.`;
+- Dünya'nın eksen eğikliği (23° 27'), mevsim konumları, fay/volkan/eş yükselti kesiti gibi özel çizimlerde \`illustrasyon\` (\`don\`, \`gidipgel\` animasyonlarıyla) kullan.`;
 
 const BIYOLOJI = `- Hayvan, bitki ve prokaryot hücre kesitleri ile organel vurgusu: \`hazir_sahne\` (\`sablon: "hucre_kesiti"\`, ilgili organellerde \`vurgulu: true\`).
 - Canlılık organizasyon basamakları, ekolojik besin ve enerji piramidi: \`hazir_sahne\` (\`sablon: "piramit"\`).
-- Mitoz/mayoz evreleri, protein sentezi, solunum/fotosentez, madde döngüleri, sinir iletimi: \`akis_semasi\` (\`akis: true\` ile akış yönü) veya \`zaman_cizelgesi\` (evre sırası); organ/kavram özetleri için \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\` — \`kalp\`, \`akciger\`, \`noron\`, \`dna\`, \`yaprak\`, \`mikroskop\`).
+- Fotosentez/solunum, sinir iletimi, sindirim, madde döngüleri: \`illustrasyon\` ile yaprağı, nöronu, organı veya ekosistemi çiz ve giren/çıkan maddeleri oklarla etiketle (\`akis\` animasyonu); mitoz/mayoz evre sırası için \`zaman_cizelgesi\`.
 - Kalıtım (Punnett karesi), kan grupları ve organel/sistem karşılaştırmaları: \`tablo\`.
-- Kalbin 4 odası, nefron/alveol gibi özel anatomik kesitler gerektiğinde son çare \`geometri_ve_diyagram\` (\`akis\` animasyonuyla) kullan.`;
+- Kalbin 4 odası, nefron/alveol gibi özel anatomik kesitler için \`illustrasyon\` (\`akis\` animasyonuyla) kullan.`;
 
 const FIZIK = `- Eğik düzlem soruları: \`hazir_sahne\` (\`sablon: "egik_duzlem"\`).
 - Elektrik devreleri (seri, paralel, karışık, akım yönü): \`hazir_sahne\` (\`sablon: "elektrik_devresi"\`).
@@ -41,14 +42,14 @@ const FIZIK = `- Eğik düzlem soruları: \`hazir_sahne\` (\`sablon: "egik_duzle
 - Serbest cisim diyagramı ve bileşke kuvvet: \`hazir_sahne\` (\`sablon: "kuvvet_dengesi"\`).
 - Konum–zaman, hız–zaman, ivme–zaman grafikleri: \`matematik_grafigi\`.
 - Vektör geometrisi ve açı/üçgen hesapları: \`geometri\`; birim ve kavram kıyasları: \`tablo\`.
-- Sarkaç, dalga titreşimi veya eğik atış yörüngesi gibi hareket animasyonlarında \`geometri_ve_diyagram\` (\`salin\`, \`gidipgel\`, \`yol\`) kullan; işlemi \`formul_ve_not\` ile adım adım çöz.`;
+- Sarkaç, dalga titreşimi veya eğik atış yörüngesi gibi hareket animasyonlarında \`illustrasyon\` (\`salin\`, \`gidipgel\`, \`yol\`) kullan; işlemi \`formul_ve_not\` ile adım adım çöz.`;
 
 const KIMYA = `- Atom modeli, katman elektron dizilimi ve iyon yükü: \`hazir_sahne\` (\`sablon: "atom_modeli"\`).
 - Kimyasal tepkimeler, çözeltiler, kap/piston ve ısıtma deneyleri: \`hazir_sahne\` (\`sablon: "tepkime_kabi"\`).
 - Kütle korunumu ve denge karşılaştırmaları: \`hazir_sahne\` (\`sablon: "terazi"\`).
 - Periyodik tablo kesiti, asit–baz/madde hâlleri karşılaştırması: \`tablo\`.
 - Mol–kütle–hacim dönüşüm şeması ve tepkime basamakları: \`akis_semasi\`.
-- Çözünürlük/hız/pH grafikleri: \`matematik_grafigi\`; molekül geometrisi açıları: \`geometri\`. Lewis nokta yapısı gibi özel çizimlerde \`geometri_ve_diyagram\` kullan.`;
+- Çözünürlük/hız/pH grafikleri: \`matematik_grafigi\`; molekül geometrisi açıları: \`geometri\`. Lewis nokta yapısı gibi özel çizimlerde \`illustrasyon\` kullan.`;
 
 const MATEMATIK = `- Fonksiyon, doğru, parabol ve eşitsizlik eğrileri: \`matematik_grafigi\`.
 - Kümeler (kesişim, birleşim, fark, evrensel küme): \`hazir_sahne\` (\`sablon: "venn"\`).
@@ -56,11 +57,11 @@ const MATEMATIK = `- Fonksiyon, doğru, parabol ve eşitsizlik eğrileri: \`mate
 - Sayma/olasılık ağaç diyagramı, fonksiyon makinesi (girdi → kural → çıktı) ve işlem akışı: \`akis_semasi\`.
 - Değer/frekans/oran tabloları ve sınıflandırmalar: \`tablo\`.
 - Koordinat düzleminde çokgenler/uzaklıklar: \`geometri\` (\`koordinatGoster: true\`).
-- Sayı doğrusu, kesir pastası veya sözel problem (havuz–musluk, tren) sahnesi gerektiğinde \`geometri_ve_diyagram\` kullan; çözümü \`formul_ve_not\` ile satır satır, her satırda tek işlem yaparak yaz.`;
+- Sayı doğrusu, kesir pastası veya sözel problem (havuz–musluk, tren) sahnesi gerektiğinde \`illustrasyon\` kullan; çözümü \`formul_ve_not\` ile satır satır, her satırda tek işlem yaparak yaz.`;
 
 const GEOMETRI = `- Üçgen, dörtgen, çokgen, çember, yay, açı, diklik, yükseklik, kenarortay, eşlik/benzerlik ve analitik geometri: \`geometri\` (ZORUNLU: \`noktalar\`, \`dogrular\`, \`cemberler\`, \`acilar\`, \`yukseklikler\`, \`cokgenler\`, \`koordinatGoster\`).
 - Çokgen/üçgen sınıflandırması ve özellik kıyası: \`tablo\` veya \`hazir_sahne\` (\`sablon: "venn"\`).
-- Katı cisim perspektifi, açınım ve öteleme/dönme animasyonu (\`kay\`, \`don\`) gibi \`geometri\` ile çizilemeyen özel durumlarda \`geometri_ve_diyagram\` kullan.`;
+- Katı cisim perspektifi, açınım ve öteleme/dönme animasyonu (\`kay\`, \`don\`) gibi \`geometri\` ile çizilemeyen özel durumlarda \`illustrasyon\` kullan.`;
 
 const FELSEFE = `- Kavram haritası ve argüman yapısı (öncüller → sonuç): \`akis_semasi\`.
 - Karşıt felsefi görüşler ve ikilemler: \`hazir_sahne\` (\`sablon: "terazi"\`).
@@ -71,18 +72,18 @@ const FELSEFE = `- Kavram haritası ve argüman yapısı (öncüller → sonuç)
 const DIN = `- Peygamberlik tarihi, vahiy ve İslam tarihi dönemleri: \`zaman_cizelgesi\`.
 - Kavram haritası, ibadet adımları ve değerler ağacı: \`akis_semasi\` veya \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\` — \`kitap\`, \`kalp\`, \`saat\`, \`ev\`, \`terazi\`).
 - İnanç/ibadet/kavram karşılaştırmaları: \`tablo\` veya \`hazir_sahne\` (\`sablon: "venn"\`).
-- Sembolik mekân (cami silüeti, Kâbe) gerekirse son çare \`geometri_ve_diyagram\` kullan.
+- Sembolik mekân ve ortam (cami silüeti, Kâbe, çöl ve kervan, Hira dağı manzarası) için \`illustrasyon\` kullan.
 - Peygamberleri, sahabeleri ve kutsal kişileri ASLA insan figürü, yüz veya çöp adam olarak çizme; isimlerini yalnızca yazı kutusunda göster.`;
 
 const YABANCI_DIL = `- Zaman kipleri (past, present, future) ve eylem sırası: \`zaman_cizelgesi\` (\`aralik\` ve \`vurgulu\` ile).
 - Kelime–anlam eşleştirme: \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\`, uygun ikonlarla).
 - Cümle yapısı (özne → yüklem → nesne) ve dil bilgisi çekim tabloları: \`akis_semasi\` (\`yon: "LR"\`) ve \`tablo\`.
-- Prepositions (in, on, under, behind) veya konuşma balonlu diyalog gerektiğinde \`geometri_ve_diyagram\` kullan. Yabancı kelimelerin söylenişini sözde Türkçe okunuşla ver.`;
+- Prepositions (in, on, under, behind) veya konuşma balonlu diyalog gerektiğinde \`illustrasyon\` kullan. Yabancı kelimelerin söylenişini sözde Türkçe okunuşla ver.`;
 
 const BILISIM = `- Algoritmalar (başla/bitir \`oval\`, işlem \`kutu\`, karar \`elmas\`, girdi/çıktı \`paralelkenar\`): \`akis_semasi\` (ZORUNLU, \`akis: true\` ile veri akışı).
 - Donanım bileşenleri (girdi → işlemci → bellek → çıktı) ve ağ topolojisi: \`akis_semasi\` (gruplarla) veya \`hazir_sahne\` (\`sablon: "ikon_izgarasi"\`).
 - Veri türü / algoritma karmaşıklığı karşılaştırması: \`tablo\`.
-- Dizi, yığın, kuyruk adım animasyonu (\`kay\`, \`yol\`) gerektiğinde \`geometri_ve_diyagram\` kullan.`;
+- Dizi, yığın, kuyruk adım animasyonu (\`kay\`, \`yol\`) gerektiğinde \`illustrasyon\` kullan.`;
 
 const REHBERLER: Rehber[] = [
   { anahtarlar: ["edebiyat", "turk dili"], metin: `${EDEBIYAT}\n${DIL_BILGISI}` },
@@ -104,7 +105,7 @@ const REHBERLER: Rehber[] = [
 
 const GENEL = `- Bu ders için hazır bir şablon yoksa konuya en uygun YAPISAL BLOĞU seç: süreç/ilişki için \`akis_semasi\`, aşama/tarih için \`zaman_cizelgesi\`, karşılaştırma için \`tablo\`.
 - Soyut kavramları \`hazir_sahne\` metaforlarıyla somutlaştır (\`terazi\`, \`piramit\`, \`venn\`, \`ikon_izgarasi\` — \`merdiven\`, \`kopru\`, \`kalkan\`, \`disli\`, \`ampul\`, \`kitap\`, \`saat\`, \`terazi\`).
-- Yalnızca bu yapısal bloklara sığmayan özgün çizimlerde son çare olarak \`geometri_ve_diyagram\` kullan.`;
+- Konunun somut bir karşılığı (nesne, mekân, olay, canlı, makine, kişi) varsa onu \`illustrasyon\` ile sahneye özel olarak resmet.`;
 
 const normallestir = (s: string) =>
   s
@@ -129,5 +130,6 @@ export function dersNotu(hamDers: unknown) {
   if (!ders) return "";
   return `\nDERS: "${ders}". Anlatımı, örnekleri, terimleri ve tahta çizimlerini bu dersin öğretim geleneğine göre yap; bu dersin öğretmenleri konuyu nasıl görselleştiriyorsa öyle görselleştir.
 BU DERS İÇİN GÖRSEL FİKİR BANKASI (örnektir, birebir kopyalama; konuya göre yaratıcı ol):
-${rehberBul(ders)}`;
+${rehberBul(ders)}
+Bu bankadaki şablonları her sahnede tekrarlama: art arda iki sahnenin ana görseli aynı tip/şablon olmasın; her sahnede o sahnenin konusuna özel bir illüstrasyon tercih et.`;
 }

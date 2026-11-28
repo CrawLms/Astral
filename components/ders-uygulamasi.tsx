@@ -12,6 +12,14 @@ import { useOynatici } from "@/hooks/use-oynatici";
 import { ANAHTARLAR, oku, sil, yaz } from "@/lib/depolama";
 import type { HazirGorsel } from "@/lib/gorsel-donustur";
 import { birlesikGorselAl } from "@/lib/ogretmen-cizim";
+import {
+  ILLUSTRASYON_PAKETI,
+  illustrasyonGerekenSahneler,
+  illustrasyonIstegiHazirla,
+  illustrasyonuUygula,
+  type IllustrasyonKatmani,
+  type IllustrasyonYaniti,
+} from "@/lib/sahne-cesitlilik";
 import { GorevKarti, SahneCizelgesi } from "./sahne-cizelgesi";
 import { BosTahtaIpucu, TahtaYukleniyor } from "./tahta-ipuclari";
 import type { Tema } from "./beyaz-tahta";
@@ -75,7 +83,15 @@ export default function DersUygulamasi() {
   const [test, setTest] = useState<TestSorusu[] | null>(null);
   const [testYukleniyor, setTestYukleniyor] = useState(false);
 
-  const sahneDegisti = useCallback(() => setGorevSonuc(null), []);
+  const kayitRef = useRef<KayitliDers | null>(null);
+  const dersNesliRef = useRef(0);
+  const bekleyenIllustrasyonRef = useRef(new Map<number, IllustrasyonKatmani[]>());
+  const bekleyenleriUygulaRef = useRef<() => void>(() => {});
+
+  const sahneDegisti = useCallback(() => {
+    setGorevSonuc(null);
+    bekleyenleriUygulaRef.current();
+  }, []);
 
   const oynatici = useOynatici({ apiRef, sesAcik, hiz, onSahne: sahneDegisti, onVurus: vurusYoksay });
   const aktifSahne = oynatici.aktif >= 0 ? oynatici.sahneler[oynatici.aktif] : null;
@@ -83,6 +99,70 @@ export default function DersUygulamasi() {
   useEffect(() => {
     yukleRef.current = oynatici.yukle;
   }, [oynatici.yukle]);
+
+  const { sahneleriGuncelle } = oynatici;
+  const bekleyenleriUygula = useCallback(() => {
+    const bekleyen = bekleyenIllustrasyonRef.current;
+    if (!bekleyen.size) return;
+    sahneleriGuncelle((sahne, sira) => {
+      const katmanlar = bekleyen.get(sira);
+      if (!katmanlar || sahne.ek) return sahne;
+      bekleyen.delete(sira);
+      return illustrasyonuUygula(sahne, katmanlar);
+    });
+  }, [sahneleriGuncelle]);
+  useEffect(() => {
+    bekleyenleriUygulaRef.current = bekleyenleriUygula;
+  }, [bekleyenleriUygula]);
+
+  // Ana anlatım yüklendikten sonra kalıbı tekrar eden sahneler için arka planda sahneye özel illüstrasyon ister;
+  // ders oynamaya hemen başlar, illüstrasyonlar geldikçe henüz oynatılmayan sahnelere uygulanır ve kaydedilir.
+  const illustrasyonlariIste = useCallback(
+    (kayit: KayitliDers) => {
+      const nesil = ++dersNesliRef.current;
+      kayitRef.current = kayit;
+      bekleyenIllustrasyonRef.current.clear();
+      const siralar = illustrasyonGerekenSahneler(kayit.sahneler);
+      for (let i = 0; i < siralar.length; i += ILLUSTRASYON_PAKETI) {
+        const paket = siralar.slice(i, i + ILLUSTRASYON_PAKETI);
+        fetch("/api/tahta", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "illustrasyon",
+            seviye,
+            ders: kayit.konu.ders,
+            uniteBaslik: kayit.konu.baslik,
+            sahneler: paket.map((sira) => illustrasyonIstegiHazirla(kayit.sahneler[sira], sira)),
+          }),
+        })
+          .then((r) => r.json() as Promise<IllustrasyonYaniti>)
+          .then((veri) => {
+            if (nesil !== dersNesliRef.current || "hata" in veri) return;
+            const guncelKayit = kayitRef.current;
+            if (!guncelKayit) return;
+            const gelen = new Map(veri.cizimler.map((c) => [c.sira, c.katmanlar]));
+            for (const [sira, katmanlar] of gelen) bekleyenIllustrasyonRef.current.set(sira, katmanlar);
+            const yeniKayit = {
+              ...guncelKayit,
+              sahneler: guncelKayit.sahneler.map((s, sira) => {
+                const katmanlar = gelen.get(sira);
+                return katmanlar ? illustrasyonuUygula(s, katmanlar) : s;
+              }),
+            };
+            kayitRef.current = yeniKayit;
+            yaz(ANAHTARLAR.ders, yeniKayit);
+            bekleyenleriUygulaRef.current();
+          })
+          .catch(() => {});
+      }
+    },
+    [seviye],
+  );
+  const illustrasyonlariIsteRef = useRef(illustrasyonlariIste);
+  useEffect(() => {
+    illustrasyonlariIsteRef.current = illustrasyonlariIste;
+  }, [illustrasyonlariIste]);
 
   useEffect(() => {
     let iptal = false;
@@ -121,6 +201,7 @@ export default function DersUygulamasi() {
         setKonu(ders.konu);
         setKonuMetni(ders.metin);
         yukleRef.current(ders.sahneler, false);
+        illustrasyonlariIsteRef.current(ders);
       }
       setHazir(true);
     })();
@@ -197,15 +278,17 @@ export default function DersUygulamasi() {
         }
         setKonu(yeniKonu);
         setKonuMetni(metin);
-        yaz(ANAHTARLAR.ders, { konu: yeniKonu, metin, sahneler: veri.sahneler } satisfies KayitliDers);
+        const kayit: KayitliDers = { konu: yeniKonu, metin, sahneler: veri.sahneler };
+        yaz(ANAHTARLAR.ders, kayit);
         oynatici.yukle(veri.sahneler);
+        illustrasyonlariIste(kayit);
       } catch {
         setHata("Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.");
       } finally {
         setYukleniyor(null);
       }
     },
-    [ogretmenModu, seviye, oynatici],
+    [ogretmenModu, seviye, oynatici, illustrasyonlariIste],
   );
 
   const uniteyiAnlat = useCallback(
@@ -235,6 +318,9 @@ export default function DersUygulamasi() {
   }, []);
 
   const sifirla = useCallback(() => {
+    dersNesliRef.current++;
+    kayitRef.current = null;
+    bekleyenIllustrasyonRef.current.clear();
     oynatici.yukle([], false);
     setUniteler([]);
     setSayfalar([]);

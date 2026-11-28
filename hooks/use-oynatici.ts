@@ -344,6 +344,22 @@ export function useOynatici({ apiRef, sesAcik, hiz, onSahne, onVurus }: Secenekl
     [ekSahneOynat, sahneyiOynat],
   );
 
+  // Arka planda gelen çizim güncellemelerini uygular. Oynatılmakta olan sahne yarıda değişmesin diye ilk vuruşu
+  // geçildiyse atlanır; çağıran taraf sahne değişiminde yeniden dener.
+  const sahneleriGuncelle = useCallback((guncelle: (sahne: Sahne, sira: number) => Sahne): Sahne[] | null => {
+    let degisti = false;
+    const yeni = sahnelerRef.current.map((s, i) => {
+      if (i === aktifRef.current && !sahneBittiRef.current && aktifVurusRef.current > 0) return s;
+      const g = guncelle(s, i);
+      if (g !== s) degisti = true;
+      return g;
+    });
+    if (!degisti) return null;
+    sahnelerRef.current = yeni;
+    setSahneler(yeni);
+    return yeni;
+  }, []);
+
   const tahtayiTemizle = useCallback(() => {
     apiRef.current?.updateScene({ elements: [], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
   }, [apiRef]);
@@ -375,5 +391,6 @@ export function useOynatici({ apiRef, sesAcik, hiz, onSahne, onVurus }: Secenekl
     tahtayiTemizle,
     ekSahneOynat,
     cevabiAnlat,
+    sahneleriGuncelle,
   };
 }
