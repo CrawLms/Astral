@@ -33,7 +33,7 @@ const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ÇOK ÖNEMLİ):
 3) {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
    → akış şeması, zaman çizelgesi, üçgen/çember/açı, kuvvet diyagramı, devre, hücre/atom/molekül şeması. SADECE path, circle, ellipse, rect, line, polyline, polygon, text, g etiketleri; viewBox='0 0 800 460'; fill='none' veya açık ton dolgu, stroke='#1e1e1e', yazılar için <text x y font-size fill>. Aynı bloğa sonraki aksiyonlarda yeni parçalar ekleyebilirsin (aynı koordinat sistemi). Script, style, image, href, on* YASAK. SVG içinde tek tırnak kullan.
 4) {"tip":"formul_ve_not","gorsel":"f1","latex":"F = m \\\\cdot a","not":"kısa el yazısı not","renk":"formul","altiCizili":true}
-   → formül (KaTeX sözdizimi, JSON'da ters bölüyü \\\\ olarak kaçır) ve/veya kısa not satırı. Her aksiyon bloğa bir satır ekler.
+   → formül (KaTeX sözdizimi, JSON'da ters bölüyü \\\\ olarak kaçır) ve/veya kısa not satırı. Her aksiyon bloğa bir satır ekler. "latex" alanına SADECE matematik yaz; düz cümle/açıklama (\\\\text{...}) "not" alanına gider. "not" alanına renk adı yazma, renk "renk" alanındadır.
 5) {"tip":"vurgula","gorsel":"h1"} → daha önce çizilmiş bloğu lazer halkasıyla gösterir.
 Renkler: "#hex" veya "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı), "sonuc" (yeşil), "normal" (siyah).
 DİYAGRAM DÜZENİ (geometri_ve_diyagram için ZORUNLU — tahta düzenli ve estetik görünmeli):
@@ -51,7 +51,9 @@ const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölün�
 - ÇİZİM SESİN ÖNÜNE GEÇMEZ: bir nesne ancak cümlesi söylenirken belirir. Söylenmeyen şeyi çizme, çizilmeyen şeye "burada gördüğün gibi" deme.`;
 
 const CIZIM_STILI = `ÖĞRETMEN ÇİZİM STİLİ (gerçek bir öğretmenin tahtayı kullanma biçimi):
-- Tahtayı yukarıdan aşağı, soldan sağa düzenli doldur: önce sahne başlığını "baslik" renginde ve altı çizili yaz, sonra içerik.
+- Sahne başlığını uygulama OTOMATİK yazar: sadece başlığın tanıtıldığı vuruşta başlık tahtanın ortasına büyük yazılır, ilk çizim gelince başlık yukarı kayar. Bu yüzden başlığı formul_ve_not veya diyagram içinde ASLA tekrar yazma. Sahnenin ilk vuruşu konuyu tanıtıyorsa "aksiyonlar": [] bırak.
+- Tahtayı yukarıdan aşağı, soldan sağa düzenli doldur; içerik birbirinden kopuk, rastgele konumlara dağılmasın.
+- Boyutlar tutarlı olsun: aynı türden yazılar (etiketler, notlar) hep aynı font-size'ı kullansın; bir şey dev, yanındaki minik olmasın.
 - Renk kodlaması tutarlı olsun: yeni terim/tanım "baslik", formül "formul", dikkat/tuzak/sık hata "vurgu", sonuç/cevap "sonuc", ara adımlar "normal". Aynı kavram ders boyunca hep aynı renkte kalsın.
 - Bir vuruşta tek fikir: bir formül satırı, bir okun eklenmesi, bir değerin yerine konması. Çözümü satır satır, her satırda tek işlem yaparak yaz; ara adımı atlama.
 - Kavramlar arasındaki ilişkiyi diyagramla göster (akış, neden-sonuç, karşılaştırma tablosu, zaman çizelgesi); karar noktalarını ayrı kutu/elmas olarak çiz.
@@ -97,11 +99,11 @@ YALNIZCA şu JSON'u döndür:
 {"sahneler":[{"baslik":"...","miniSoru":"...","miniGorev":null,"vuruslar":[{"id":"v1","soz":"...","aksiyonlar":[]}]}]}`;
 
 const SORU_ORTAK = `Öğrencinin gönderdiği tahta görüntüsü, öğretmenin tahtadaki çizimleri (harita, grafik, diyagram) ile öğrencinin üstüne KIRMIZI kalemle yaptığı işaretlerin birleşimidir; işaretlenen yerleri doğrudan görerek değerlendir.
-Cevabını tahtada canlı çizerek ver: 2-8 vuruşluk "vuruslar" dizisi oluştur (yeni boş bir tahta alanına çizilir).
+Cevabını tahtada canlı çizerek ver: 2-8 vuruşluk "vuruslar" dizisi oluştur. Cevap, dersin şu anki adımından çıkılmadan aynı adım içinde temiz bir tahta yüzeyine çizilir; cevap bitince ders kaldığı yerden devam eder.
 Öğrenci soru fotoğrafı gönderdiyse fotoğraf tahtanın soluna yerleştirilir; sen çözümü yanına adım adım çiz.`;
 
 const SORU_TALIMATI = `Sen sabırlı ve net bir Türk öğretmensin. ${SORU_ORTAK}
-Soruyu adım adım çöz ve açıkla: önce verilenleri ve isteneni tahtaya yaz, sonra kullanılacak kuralı/formülü göster, her satırda tek işlem yap, sonucu "sonuc" renginde altı çizili yaz ve sonunda kısa bir kontrol sorusuyla bitir. Öğrenci bir mini soruya cevap veriyorsa doğru olup olmadığını nazikçe söyle ve gerekçesini göster; yanlışsa hatanın tam olarak hangi adımda olduğunu "vurgu" renginde göster.
+Soruyu adım adım çöz ve açıkla: önce verilenleri ve isteneni tahtaya yaz, sonra kullanılacak kuralı/formülü göster, her satırda tek işlem yap, sonucu "sonuc" renginde altı çizili yaz. Son vuruşta yeni soru SORMA; cevabı konuya bağlayan kısa bir geçiş cümlesiyle bitir (ör. "Harika, şimdi anlatmaya devam edelim."), çünkü ders otomatik olarak devam edecek. Öğrenci bir mini soruya cevap veriyorsa doğru olup olmadığını nazikçe söyle ve gerekçesini göster; yanlışsa hatanın tam olarak hangi adımda olduğunu "vurgu" renginde göster.
 ${VURUS_KURALLARI}
 ${CIZIM_STILI}
 ${GORSEL_KURALLARI}
@@ -119,6 +121,8 @@ const TEST_TALIMATI = `Sen bir Türk öğretmensin. Verilen ünite metninden ö�
 Her sorunun 4 seçeneği olsun, yalnızca biri doğru olsun. Sorular ezber değil kavrama ölçsün.
 YALNIZCA şu JSON'u döndür:
 {"sorular":[{"soru":"...","secenekler":["A","B","C","D"],"dogruIndex":0,"aciklama":"Doğru cevabın kısa gerekçesi"}]}`;
+
+const RENK_ANAHTARLARI = new Set(["baslik", "başlık", "formul", "formül", "vurgu", "sonuc", "sonuç", "normal"]);
 
 const BOLGELER = new Set<Bolge>(["marmara", "ege", "akdeniz", "ic-anadolu", "karadeniz", "dogu-anadolu", "guneydogu-anadolu"]);
 
@@ -149,6 +153,19 @@ function svgTemizle(ham: unknown) {
     .replace(/<(script|style|foreignObject|image|iframe)[^>]*\/?>/gi, "")
     .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/\s(xlink:)?href\s*=\s*("[^"]*"|'[^']*')/gi, "");
+}
+
+function yaziyaCevir(latex: string) {
+  const metinler = [...latex.matchAll(/\\(?:text|textbf|mathrm)\{([^{}]*)\}/g)].map((m) => m[1]);
+  const kalan = latex.replace(/\\(?:text|textbf|mathrm)\{[^{}]*\}/g, "").replace(/[\s=:,.\-]|\\[,;!]|\\quad/g, "");
+  const duzYazi = !/[\\^_{}]/.test(latex) && /\p{L}{3,}\s+\p{L}{3,}/u.test(latex);
+  if (duzYazi) return latex.trim();
+  if (!metinler.length || kalan.length > 4) return undefined;
+  return latex
+    .replace(/\\(?:text|textbf|mathrm)\{([^{}]*)\}/g, "$1")
+    .replace(/\\[,;!]|\\quad/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
@@ -198,8 +215,12 @@ function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
       return svg ? { tip: "geometri_ve_diyagram", gorsel, svg } : undefined;
     }
     case "formul_ve_not": {
-      const latex = yazi(h.latex, 600);
-      const not = yazi(h.not, 160);
+      const hamLatex = yazi(h.latex, 600);
+      const hamNot = yazi(h.not, 160);
+      const temizNot = hamNot && !RENK_ANAHTARLARI.has(hamNot.toLocaleLowerCase("tr")) ? hamNot : undefined;
+      const latexMetni = hamLatex ? yaziyaCevir(hamLatex) : undefined;
+      const latex = latexMetni ? undefined : hamLatex;
+      const not = latexMetni ? [latexMetni, temizNot].filter(Boolean).join(" — ").slice(0, 200) : temizNot;
       return latex || not ? { tip: "formul_ve_not", gorsel, latex, not, renk: renk(h.renk), altiCizili: h.altiCizili === true } : undefined;
     }
     case "vurgula":
@@ -234,12 +255,28 @@ function gorevTemizle(ham: unknown): MiniGorev | null {
   return g.tur === "tahtaya_yaz" ? { tur: "tahtaya_yaz", yonerge } : null;
 }
 
+const baslikNormal = (m: string) =>
+  m
+    .toLocaleLowerCase("tr")
+    .replace(/^\s*\d+[.)]\s*/, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+function baslikTekrariniAyikla(vuruslar: Vurus[], baslik: string): Vurus[] {
+  const hedef = baslikNormal(baslik);
+  if (!hedef) return vuruslar;
+  return vuruslar.map((v) => ({
+    ...v,
+    aksiyonlar: v.aksiyonlar.filter((a) => !(a.tip === "formul_ve_not" && !a.latex && a.not && baslikNormal(a.not) === hedef)),
+  }));
+}
+
 function sahneleriTemizle(ham: unknown): Sahne[] {
   if (!Array.isArray(ham)) return [];
   return ham
     .filter((s) => s && typeof s === "object")
     .map((s) => {
-      const vuruslar = vuruslariTemizle(s.vuruslar);
+      const vuruslar = baslikTekrariniAyikla(vuruslariTemizle(s.vuruslar), String(s.baslik ?? ""));
       const haritaVar = vuruslar.some((v) => v.aksiyonlar.some((a) => a.tip === "turkiye_haritasi"));
       let miniGorev = gorevTemizle(s.miniGorev);
       if (miniGorev?.tur === "il_tikla" && !haritaVar) miniGorev = null;

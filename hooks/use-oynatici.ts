@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { alanY, ilerlemeDeposuOlustur, renkCoz, sahneyeOdaklan, yerlesim } from "@/lib/ogretmen-cizim";
-import type { MiniGorev, Sahne, Vurus } from "@/lib/types";
+import { vurusKatmani, type CevapSonrasi, type MiniGorev, type Sahne, type Vurus } from "@/lib/types";
 
 export type CanliKatman = {
   kalem: { x: number; y: number } | null;
@@ -163,7 +163,7 @@ export function useOynatici({ apiRef, sesAcik, hiz, onSahne, onVurus }: Secenekl
   const vurgula = useCallback((sahne: Sahne, sira: number, vurus: Vurus) => {
     const hedef = vurus.aksiyonlar.find((a) => a.tip === "vurgula");
     if (!hedef) return;
-    const blok = yerlesim(sahne).get(hedef.gorsel);
+    const blok = yerlesim(sahne, { katman: vurusKatmani(vurus) }).get(hedef.gorsel);
     if (blok) canliRef.current.vurgu = { x: blok.kutu.x, y: alanY(sira) + blok.kutu.y, w: blok.kutu.w, h: blok.kutu.h, bitis: performance.now() + 2600 / hizRef.current };
   }, []);
 
@@ -206,6 +206,22 @@ export function useOynatici({ apiRef, sesAcik, hiz, onSahne, onVurus }: Secenekl
       sahneBittiRef.current = true;
       const son = sira === sahnelerRef.current.length - 1;
 
+      if (sahne.cevaplandi === "bekle") {
+        setOynatiliyor(false);
+        setSoruBekliyor(Boolean(sahne.miniSoru));
+        if (son) setBitti(true);
+        return;
+      }
+      if (sahne.cevaplandi === "gec") {
+        if (!son && !sahne.ek) {
+          await bekle(700 / hizRef.current);
+          if (token === playbackTokenRef.current) sahneyiOynatRef.current(sira + 1);
+          return;
+        }
+        setOynatiliyor(false);
+        setBitti(true);
+        return;
+      }
       if (sahne.miniGorev) {
         setGorev(sahne.miniGorev);
         await konus(`Mini görev: ${sahne.miniGorev.yonerge}`, token);
@@ -297,6 +313,37 @@ export function useOynatici({ apiRef, sesAcik, hiz, onSahne, onVurus }: Secenekl
     [sahneyiOynat],
   );
 
+  const cevabiAnlat = useCallback(
+    (cevap: { baslik: string; vuruslar: Vurus[]; fotograf?: string | null }, sonra: CevapSonrasi) => {
+      const sira = aktifRef.current;
+      const sahne = sahnelerRef.current[sira];
+      if (!sahne) {
+        ekSahneOynat({ baslik: cevap.baslik, miniSoru: null, vuruslar: cevap.vuruslar, fotograf: cevap.fotograf ?? null });
+        return;
+      }
+      const katman = (sahne.katmanlar?.length ?? 0) + 1;
+      const sahneBitti = sahneBittiRef.current;
+      const ekleme = sahneBitti ? sahne.vuruslar.length : Math.min(sahne.vuruslar.length, aktifVurusRef.current + 1);
+      const cevapVuruslari: Vurus[] = cevap.vuruslar.map((v) => ({
+        ...v,
+        id: `${v.id}-k${katman}`,
+        katman,
+        aksiyonlar: v.aksiyonlar.map((a) => ({ ...a, gorsel: `k${katman}-${a.gorsel}` })),
+      }));
+      const guncel: Sahne = {
+        ...sahne,
+        vuruslar: [...sahne.vuruslar.slice(0, ekleme), ...cevapVuruslari, ...sahne.vuruslar.slice(ekleme)],
+        katmanlar: [...(sahne.katmanlar ?? []), { baslik: cevap.baslik, fotograf: cevap.fotograf ?? null }],
+        cevaplandi: sahneBitti ? sonra : sahne.cevaplandi,
+      };
+      const yeni = sahnelerRef.current.map((s, i) => (i === sira ? guncel : s));
+      sahnelerRef.current = yeni;
+      setSahneler(yeni);
+      void sahneyiOynat(sira, ekleme);
+    },
+    [ekSahneOynat, sahneyiOynat],
+  );
+
   const tahtayiTemizle = useCallback(() => {
     apiRef.current?.updateScene({ elements: [], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
   }, [apiRef]);
@@ -327,5 +374,6 @@ export function useOynatici({ apiRef, sesAcik, hiz, onSahne, onVurus }: Secenekl
     gorevTamamla,
     tahtayiTemizle,
     ekSahneOynat,
+    cevabiAnlat,
   };
 }

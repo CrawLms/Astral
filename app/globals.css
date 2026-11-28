@@ -141,11 +141,20 @@ body {
   animation: lazer-nabiz 0.9s ease-in-out infinite;
 }
 
+.tahta-baslik {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lazer-halkasi,
   .konusma-cubugu,
   .kart-giris,
   .kenar-giris {
     animation: none;
+  }
+  .tahta-baslik {
+    transition: none;
   }
 }
