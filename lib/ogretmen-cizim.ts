@@ -36,6 +36,22 @@ export function katmanFotografi(sahne: Sahne, katman: number) {
   return katman > 0 ? sahne.katmanlar?.[katman - 1]?.fotograf ?? null : sahne.fotograf ?? null;
 }
 
+const ANA_GORSEL_TIPLERI: Record<Exclude<GorselTipi, "formul_ve_not">, true> = {
+  fotograf: true,
+  turkiye_haritasi: true,
+  matematik_grafigi: true,
+  geometri_ve_diyagram: true,
+  geometri: true,
+  akis_semasi: true,
+  zaman_cizelgesi: true,
+  tablo: true,
+  hazir_sahne: true,
+};
+
+export function anaGorselBlokuMu(tip: GorselTipi): boolean {
+  return tip !== "formul_ve_not" && Boolean(ANA_GORSEL_TIPLERI[tip]);
+}
+
 export function yerlesim(
   sahne: Sahne,
   { topInset = SAHNE_UST_BOSLUK, katman = 0 }: { topInset?: number; katman?: number } = {},
@@ -50,8 +66,8 @@ export function yerlesim(
       if (a.tip !== "vurgula" && !sirali.some((b) => b.id === a.gorsel)) sirali.push({ id: a.gorsel, tip: a.tip });
     }
   }
-  const buyuk = sirali.filter((b) => b.tip !== "formul_ve_not");
-  const kucuk = sirali.filter((b) => b.tip === "formul_ve_not");
+  const buyuk = sirali.filter((b) => anaGorselBlokuMu(b.tip));
+  const kucuk = sirali.filter((b) => !anaGorselBlokuMu(b.tip));
   const G = 24;
   const solW = buyuk.length && kucuk.length ? 620 : ALAN_W;
   const sonuc = new Map<string, Blok>();

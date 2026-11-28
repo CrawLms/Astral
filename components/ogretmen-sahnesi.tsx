@@ -13,11 +13,37 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import rough from "roughjs";
 import type { Drawable, Options } from "roughjs/bin/core";
 import { cities } from "turkey-map-react/data";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { CanliKatman } from "@/hooks/use-oynatici";
+import {
+  EL_YAZISI,
+  Cizgi,
+  Kaba,
+  Yazi,
+  aralikta,
+  azHareket,
+  bosYereYerlestir,
+  etiketBirlestir,
+  etiketNormal,
+  gen,
+  kesisir,
+  parcaIlerlemesi,
+  satirlaraBol,
+  sinirIcineAl,
+  sinirla,
+  tohum,
+  yaziGenisligi,
+  yaziSol,
+  type Akis,
+  type Hizalama,
+  type Parca,
+  type Sinir,
+} from "@/components/cizim/ortak";
+import { GeometriBlok } from "@/components/cizim/geometri-blok";
+import { AkisSemasiBlok, TabloBlok, ZamanCizelgesiBlok } from "@/components/cizim/akis-ve-tablo";
+import { HazirSahneBlok } from "@/components/cizim/sablon-blok";
 import { latexGorseli, type HazirGorsel } from "@/lib/gorsel-donustur";
 import { guzelAdim, ifadeDerle } from "@/lib/matematik";
 import { duzYaziyaCevir } from "@/lib/metin-temizle";
@@ -25,197 +51,23 @@ import { ALAN_H, ALAN_W, FOTO_BLOK, alanY, katmanFotografi, renkCoz, yerlesim, t
 import {
   aktifKatman,
   vurusKatmani,
+  type AkisSemasiAksiyonu,
   type Aksiyon,
   type Bolge,
   type DiyagramAksiyonu,
   type FormulAksiyonu,
+  type GeometriAksiyonu,
   type GrafikAksiyonu,
   type HaritaAksiyonu,
+  type HazirSahneAksiyonu,
   type Sahne,
+  type TabloAksiyonu,
+  type ZamanCizelgesiAksiyonu,
 } from "@/lib/types";
 
-const EL_YAZISI = "Virgil, Excalifont, 'Comic Sans MS', 'Segoe Print', cursive";
-const gen = rough.generator();
 const IL = new Map(cities.map((c) => [c.plateNumber, c]));
-const sinirla = (v: number) => Math.max(0, Math.min(1, v));
-const aralikta = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-type Sinir = { x0: number; y0: number; x1: number; y1: number };
-type Hizalama = "start" | "middle" | "end";
-
-let olcumBaglami: CanvasRenderingContext2D | null | undefined;
-const birimGenislik = new Map<string, number>();
-if (typeof document !== "undefined") document.fonts?.addEventListener?.("loadingdone", () => birimGenislik.clear());
-
-function yaziGenisligi(metin: string, boyut: number) {
-  let birim = birimGenislik.get(metin);
-  if (birim === undefined) {
-    if (olcumBaglami === undefined) olcumBaglami = typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
-    if (olcumBaglami) {
-      olcumBaglami.font = `100px ${EL_YAZISI}`;
-      birim = olcumBaglami.measureText(metin).width / 100;
-    } else birim = metin.length * 0.56;
-    if (birimGenislik.size > 3000) birimGenislik.clear();
-    birimGenislik.set(metin, birim);
-  }
-  return birim * boyut;
-}
-
-function yaziSol(x: number, w: number, hizala: Hizalama) {
-  return hizala === "middle" ? x - w / 2 : hizala === "end" ? x - w : x;
-}
-
-function sinirIcineAl(x: number, y: number, metin: string, boyut: number, hizala: Hizalama, s: Sinir) {
-  const w = yaziGenisligi(metin, boyut);
-  const sol = yaziSol(x, w, hizala);
-  const yeniSol = w >= s.x1 - s.x0 ? s.x0 : aralikta(sol, s.x0, s.x1 - w);
-  return { x: x + yeniSol - sol, y: aralikta(y, s.y0 + boyut * 0.9, s.y1 - boyut * 0.3) };
-}
-
-function etiketKutusu(x: number, y: number, metin: string, boyut: number, hizala: Hizalama): Sinir {
-  const w = yaziGenisligi(metin, boyut);
-  const x0 = yaziSol(x, w, hizala);
-  return { x0, y0: y - boyut * 0.9, x1: x0 + w, y1: y + boyut * 0.3 };
-}
-
-const kesisir = (a: Sinir, b: Sinir) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-
-function bosYereYerlestir(x: number, y: number, metin: string, boyut: number, hizala: Hizalama, s: Sinir, dolu: Sinir[]) {
-  let ilk: { x: number; y: number } | null = null;
-  for (const kat of [0, 1.3, -1.3, 2.6, -2.6]) {
-    const konum = sinirIcineAl(x, y + kat * boyut, metin, boyut, hizala, s);
-    ilk ??= konum;
-    const kutu = etiketKutusu(konum.x, konum.y, metin, boyut, hizala);
-    if (!dolu.some((d) => kesisir(d, kutu))) return { ...konum, kutu };
-  }
-  return { ...ilk!, kutu: etiketKutusu(ilk!.x, ilk!.y, metin, boyut, hizala) };
-}
-
-function tohum(metin: string) {
-  let h = 2166136261;
-  for (let i = 0; i < metin.length; i++) h = Math.imul(h ^ metin.charCodeAt(i), 16777619);
-  return (Math.abs(h) % 2_000_000) + 1;
-}
-
-const etiketNormal = (m?: string) => (m ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("tr");
-
-export function etiketBirlestir(ana?: string, yardimci?: string, ayrac = " — ") {
-  const a = (ana ?? "").trim();
-  const y = (yardimci ?? "").trim();
-  if (!a) return y;
-  if (!y || etiketNormal(a) === etiketNormal(y)) return a;
-  return `${a}${ayrac}${y}`;
-}
-
-const parcaIlerlemesi = (p: number, sira: number, toplam: number) => sinirla(p * toplam - sira);
-
-type Parca<T extends Aksiyon = Aksiyon> = { aksiyon: T; p: number };
-
-type Akis = { sure: number; yon: 1 | -1; gecikme: number };
-
-function Cizgi({
-  d,
-  renk,
-  kalinlik = 2,
-  p,
-  dolgu,
-  kesikli,
-  akis,
-}: {
-  d: string;
-  renk: string;
-  kalinlik?: number;
-  p: number;
-  dolgu?: string;
-  kesikli?: boolean;
-  akis?: Akis;
-}) {
-  if (p <= 0) return null;
-  const animasyon = p < 1;
-  const akiyor = Boolean(akis && !animasyon && !dolgu);
-  return (
-    <path
-      d={d}
-      fill={dolgu ?? "none"}
-      stroke={renk}
-      strokeWidth={kalinlik}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      pathLength={animasyon && !kesikli ? 1 : undefined}
-      strokeDasharray={akiyor ? "10 8" : kesikli ? "6 6" : animasyon ? "1 1" : undefined}
-      strokeDashoffset={animasyon && !kesikli ? 1 - p : undefined}
-      opacity={kesikli && !akiyor ? p : undefined}
-      data-kalem={animasyon ? "" : undefined}
-      data-p={animasyon ? p : undefined}
-    >
-      {akiyor && akis && !azHareket() && (
-        <animate attributeName="stroke-dashoffset" values={akis.yon < 0 ? "0;36" : "0;-36"} dur={`${akis.sure}s`} begin={`${akis.gecikme}s`} repeatCount="indefinite" />
-      )}
-    </path>
-  );
-}
-
-const azHareket = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-function Kaba({ cizim, p, kesikli, akis }: { cizim: Drawable; p: number; kesikli?: boolean; akis?: Akis }) {
-  const yollar = useMemo(() => gen.toPaths(cizim), [cizim]);
-  return (
-    <g>
-      {yollar.map((y, i) => {
-        const dolgu = y.fill && y.fill !== "none" ? y.fill : undefined;
-        return <Cizgi key={i} d={y.d} renk={y.stroke} kalinlik={y.strokeWidth} dolgu={dolgu} p={p} kesikli={kesikli && !dolgu} akis={akis} />;
-      })}
-    </g>
-  );
-}
-
-function Yazi({
-  x,
-  y,
-  metin,
-  boyut = 20,
-  renk = "#1e1e1e",
-  p,
-  hizala = "start",
-}: {
-  x: number;
-  y: number;
-  metin: string;
-  boyut?: number;
-  renk?: string;
-  p: number;
-  hizala?: Hizalama;
-}) {
-  const id = `y${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  if (p <= 0 || !metin) return null;
-  const w = yaziGenisligi(metin, boyut);
-  const x0 = yaziSol(x, w, hizala);
-  return (
-    <g>
-      {p < 1 && (
-        <clipPath id={id}>
-          <rect x={x0 - 6} y={y - boyut * 1.2} width={(w + 12) * p} height={boyut * 1.7} />
-        </clipPath>
-      )}
-      <text
-        x={x}
-        y={y}
-        fontSize={boyut}
-        fill={renk}
-        fontFamily={EL_YAZISI}
-        textAnchor={hizala}
-        stroke="#ffffff"
-        strokeWidth={4}
-        strokeLinejoin="round"
-        paintOrder="stroke"
-        clipPath={p < 1 ? `url(#${id})` : undefined}
-      >
-        {metin}
-      </text>
-      {p < 1 && <path d={`M${x0} ${y} L${x0 + w} ${y}`} stroke="none" fill="none" data-kalem="" data-p={p} />}
-    </g>
-  );
-}
+export { etiketBirlestir };
 
 const BOLGE_VARSAYILAN = "#fcfcfb";
 
@@ -602,12 +454,53 @@ function animOku(el: Element): { hareket?: Canlandirma; akis?: Akis } | null {
   };
 }
 
+type MarkerSekil =
+  | { tur: "path"; d: string; fill?: string; stroke?: string; strokeWidth?: number }
+  | { tur: "polygon"; points: string; fill?: string; stroke?: string; strokeWidth?: number }
+  | { tur: "polyline"; points: string; fill?: string; stroke?: string; strokeWidth?: number }
+  | { tur: "circle"; cx: number; cy: number; r: number; fill?: string; stroke?: string; strokeWidth?: number }
+  | { tur: "ellipse"; cx: number; cy: number; rx: number; ry: number; fill?: string; stroke?: string; strokeWidth?: number }
+  | { tur: "rect"; x: number; y: number; width: number; height: number; rx?: number; ry?: number; fill?: string; stroke?: string; strokeWidth?: number }
+  | { tur: "line"; x1: number; y1: number; x2: number; y2: number; stroke?: string; strokeWidth?: number };
+
+type MarkerTanimi = {
+  id: string;
+  viewBox: string;
+  refX: number;
+  refY: number;
+  markerWidth: number;
+  markerHeight: number;
+  orient: string;
+  markerUnits: "strokeWidth" | "userSpaceOnUse";
+  sekiller: MarkerSekil[];
+};
+
+const MARKER_ID_DESENI = /^[a-zA-Z_][\w:-]*$/;
+const MARKER_URL_DESENI = /^url\(\s*#([a-zA-Z_][\w:-]*)\s*\)$/;
+
 type DiyagramOgesi =
-  | { tur: "sekil"; cizim: Drawable; donusum?: string; kapali: boolean; kesikli: boolean; sinir: Sinir | null; hareket?: GrupHareketi; akis?: Akis }
+  | {
+      tur: "sekil";
+      cizim: Drawable;
+      donusum?: string;
+      kapali: boolean;
+      kesikli: boolean;
+      sinir: Sinir | null;
+      hareket?: GrupHareketi;
+      akis?: Akis;
+      renk: string;
+      kalinlik: number;
+      markerYol?: string;
+      markerDonusum?: string;
+      markerStart?: string;
+      markerEnd?: string;
+      markerMid?: string;
+    }
   | {
       tur: "yazi";
       x: number;
       y: number;
+      ozgunY: number;
       metin: string;
       boyut: number;
       ozgunBoyut: number;
@@ -773,6 +666,12 @@ function viewBoxCoz(vb: string) {
   return { x, y, w, h };
 }
 
+function sinirIcindeMi(ic: Sinir, dis: Sinir) {
+  const icx = (ic.x0 + ic.x1) / 2;
+  const icy = (ic.y0 + ic.y1) / 2;
+  return icx > dis.x0 && icx < dis.x1 && icy > dis.y0 && icy < dis.y1;
+}
+
 function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
   const vb = viewBoxCoz(viewBox);
   const grupAnahtari = (li: number, o: DiyagramOgesi) => (o.hareket ? `${li}:${o.hareket.grup}` : "");
@@ -782,52 +681,42 @@ function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
         .filter((o): o is Extract<DiyagramOgesi, { tur: "sekil" }> => o.tur === "sekil" && o.kapali && !o.donusum && Boolean(o.sinir))
         .map((o) => ({ s: o.sinir as Sinir, g: grupAnahtari(li, o) })),
     )
-    .filter(({ s }) => s.x1 - s.x0 < vb.w * 0.45 && s.y1 - s.y0 < vb.h * 0.6);
+    .filter(({ s }) => s.x1 - s.x0 < vb.w * 0.65 && s.y1 - s.y0 < vb.h * 0.7);
   const etiketler = parcalar.flatMap((liste, li) =>
     liste
       .filter((o): o is Extract<DiyagramOgesi, { tur: "yazi" }> => o.tur === "yazi" && !o.donusum)
       .map((t) => ({ t, g: grupAnahtari(li, t) })),
   );
 
-  for (const { t, g } of etiketler) {
-    const ts = yaziSiniri(t);
-    const tcx = (ts.x0 + ts.x1) / 2;
-    const tcy = (ts.y0 + ts.y1) / 2;
-    let enIyi: { s: Sinir; konum: "alt" | "ust" | "ic"; mesafe: number } | null = null;
-    for (const { s, g: sekilGrubu } of sekiller) {
-      if (sekilGrubu !== g) continue;
-      const yatayOrtusme = ts.x1 > s.x0 - 50 && ts.x0 < s.x1 + 50;
-      if (!yatayOrtusme) continue;
-      const scx = (s.x0 + s.x1) / 2;
-      const yatayMesafe = Math.abs(tcx - scx);
-      let aday: { konum: "alt" | "ust" | "ic"; mesafe: number } | null = null;
-      if (tcx > s.x0 && tcx < s.x1 && tcy > s.y0 && tcy < s.y1) aday = { konum: "ic", mesafe: 0 };
-      else if (ts.y0 >= s.y1 - 8 && ts.y0 - s.y1 < 70) aday = { konum: "alt", mesafe: ts.y0 - s.y1 + yatayMesafe * 0.3 };
-      else if (ts.y1 <= s.y0 + 8 && s.y0 - ts.y1 < 50) aday = { konum: "ust", mesafe: s.y0 - ts.y1 + yatayMesafe * 0.3 };
-      if (aday && (!enIyi || aday.mesafe < enIyi.mesafe)) enIyi = { s, ...aday };
-    }
-    if (!enIyi) continue;
-    const { s, konum } = enIyi;
-    t.x = (s.x0 + s.x1) / 2;
-    t.hizala = "middle";
-    if (konum === "alt" && t.y - t.boyut * 0.9 < s.y1 + 8) t.y = s.y1 + 8 + t.boyut * 0.9;
-    if (konum === "ust" && t.y + t.boyut * 0.3 > s.y0 - 8) t.y = s.y0 - 8 - t.boyut * 0.3;
-  }
+  for (const { t } of etiketler) t.y = t.ozgunY;
 
-  const hareketGruplari = new Map<string, Extract<DiyagramOgesi, { tur: "yazi" }>[]>();
-  for (const { t, g } of etiketler) hareketGruplari.set(g, [...(hareketGruplari.get(g) ?? []), t]);
-  for (const yazilar of hareketGruplari.values()) {
-    const sirali = [...yazilar].sort((a, b) => a.y - b.y);
-    for (let i = 0; i < sirali.length; ) {
-      let j = i + 1;
-      while (j < sirali.length && sirali[j].y - sirali[i].y < 16) j++;
-      if (j - i > 1) {
-        const grup = sirali.slice(i, j);
-        const ortY = grup.reduce((t, o) => t + o.y, 0) / grup.length;
-        grup.forEach((o) => (o.y = ortY));
+  const yerlesenSinirlar: Sinir[] = [];
+  for (const { t, g } of etiketler) {
+    const grupSekilleri = sekiller.filter((x) => x.g === g).map((x) => x.s);
+    const basSinir = yaziSiniri(t);
+    const carpisiyor = (kutu: Sinir) =>
+      yerlesenSinirlar.some((d) => kesisir(d, kutu)) ||
+      grupSekilleri.some((s) => kesisir(kutu, s) && !sinirIcindeMi(kutu, s));
+
+    if (carpisiyor(basSinir)) {
+      const adayYler = new Set<number>();
+      for (const s of grupSekilleri) {
+        if (kesisir(basSinir, s) && !sinirIcindeMi(basSinir, s)) {
+          const sOrtaY = (s.y0 + s.y1) / 2;
+          const bOrtaY = (basSinir.y0 + basSinir.y1) / 2;
+          adayYler.add(bOrtaY >= sOrtaY ? s.y1 + 6 + t.boyut * 0.9 : s.y0 - 6 - t.boyut * 0.3);
+        }
       }
-      i = j;
+      for (const kat of [1.15, -1.15, 2.3, -2.3, 3.5, -3.5]) adayYler.add(t.ozgunY + kat * t.boyut);
+      for (const adayY of adayYler) {
+        const adayKutu = yaziSiniri({ ...t, y: adayY });
+        if (!carpisiyor(adayKutu)) {
+          t.y = adayY;
+          break;
+        }
+      }
     }
+    yerlesenSinirlar.push(yaziSiniri(t));
   }
 
   const donusumluVar = parcalar.flat().some((o) => o.donusum);
@@ -852,12 +741,147 @@ function diyagramDuzenle(parcalar: DiyagramOgesi[][], viewBox: string): string {
   return `${x0} ${y0} ${x1 - x0} ${y1 - y0}`;
 }
 
-function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: DiyagramOgesi[] } {
+function markerRenkAl(el: Element, ad: string): string | undefined {
+  const r = el.getAttribute(ad)?.trim();
+  if (!r) return undefined;
+  if (r === "context-stroke" || r === "context-fill" || r === "none" || r === "transparent" || RENK_DESENI.test(r)) return r;
+  return undefined;
+}
+
+function markerleriOku(kok: Element): MarkerTanimi[] {
+  const liste: MarkerTanimi[] = [];
+  const sayi = (el: Element, ad: string, v = 0) => {
+    const n = parseFloat(el.getAttribute(ad) ?? "");
+    return Number.isFinite(n) ? n : v;
+  };
+  const noktalarMetni = (el: Element) =>
+    (el.getAttribute("points") ?? "")
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number)
+      .reduce<[number, number][]>((acc, v, i, a) => (i % 2 === 0 && Number.isFinite(v) && Number.isFinite(a[i + 1]) ? [...acc, [v, a[i + 1]]] : acc), [])
+      .map(([x, y]) => `${x} ${y}`)
+      .join(" ");
+
+  const sekilTopla = (kap: Element, out: MarkerSekil[]) => {
+    for (const cocuk of Array.from(kap.children)) {
+      if (out.length >= 16) break;
+      const ad = cocuk.nodeName.toLowerCase();
+      if (ad === "g") {
+        sekilTopla(cocuk, out);
+        continue;
+      }
+      const fill = markerRenkAl(cocuk, "fill");
+      const stroke = markerRenkAl(cocuk, "stroke");
+      const sw = cocuk.hasAttribute("stroke-width") ? aralikta(sayi(cocuk, "stroke-width", 1.5), 0.5, 6) : undefined;
+      if (ad === "path") {
+        const d = cocuk.getAttribute("d")?.trim() ?? "";
+        if (d && d.length < 2000 && YOL_DESENI.test(d)) out.push({ tur: "path", d, fill, stroke, strokeWidth: sw });
+      } else if (ad === "polygon" || ad === "polyline") {
+        const pts = noktalarMetni(cocuk);
+        if (pts) out.push({ tur: ad, points: pts, fill, stroke, strokeWidth: sw });
+      } else if (ad === "circle") {
+        out.push({ tur: "circle", cx: sayi(cocuk, "cx"), cy: sayi(cocuk, "cy"), r: aralikta(sayi(cocuk, "r", 3), 0.5, 50), fill, stroke, strokeWidth: sw });
+      } else if (ad === "ellipse") {
+        out.push({
+          tur: "ellipse",
+          cx: sayi(cocuk, "cx"),
+          cy: sayi(cocuk, "cy"),
+          rx: aralikta(sayi(cocuk, "rx", 3), 0.5, 50),
+          ry: aralikta(sayi(cocuk, "ry", 3), 0.5, 50),
+          fill,
+          stroke,
+          strokeWidth: sw,
+        });
+      } else if (ad === "rect") {
+        out.push({
+          tur: "rect",
+          x: sayi(cocuk, "x"),
+          y: sayi(cocuk, "y"),
+          width: aralikta(sayi(cocuk, "width", 6), 0.5, 100),
+          height: aralikta(sayi(cocuk, "height", 6), 0.5, 100),
+          rx: cocuk.hasAttribute("rx") ? sayi(cocuk, "rx") : undefined,
+          ry: cocuk.hasAttribute("ry") ? sayi(cocuk, "ry") : undefined,
+          fill,
+          stroke,
+          strokeWidth: sw,
+        });
+      } else if (ad === "line") {
+        out.push({
+          tur: "line",
+          x1: sayi(cocuk, "x1"),
+          y1: sayi(cocuk, "y1"),
+          x2: sayi(cocuk, "x2"),
+          y2: sayi(cocuk, "y2"),
+          stroke,
+          strokeWidth: sw,
+        });
+      }
+    }
+  };
+
+  for (const el of Array.from(kok.querySelectorAll("defs marker, marker"))) {
+    if (liste.length >= 24) break;
+    const id = el.getAttribute("id")?.trim() ?? "";
+    if (!MARKER_ID_DESENI.test(id)) continue;
+    const vbHam = el.getAttribute("viewBox")?.trim() ?? "";
+    const vbGecerli = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(vbHam) && viewBoxCoz(vbHam).w > 0 && viewBoxCoz(vbHam).h > 0;
+    const orientHam = el.getAttribute("orient")?.trim() ?? "auto";
+    const orient =
+      orientHam === "auto" || orientHam === "auto-start-reverse" || /^-?\d+(?:\.\d+)?$/.test(orientHam) ? orientHam : "auto";
+    const markerUnits = el.getAttribute("markerUnits")?.trim() === "userSpaceOnUse" ? "userSpaceOnUse" : "strokeWidth";
+    const sekiller: MarkerSekil[] = [];
+    sekilTopla(el, sekiller);
+    if (!sekiller.length) continue;
+    liste.push({
+      id,
+      viewBox: vbGecerli ? vbHam : "0 0 10 10",
+      refX: sayi(el, "refX", 0),
+      refY: sayi(el, "refY", 0),
+      markerWidth: aralikta(sayi(el, "markerWidth", 6), 1, 40),
+      markerHeight: aralikta(sayi(el, "markerHeight", 6), 1, 40),
+      orient,
+      markerUnits,
+      sekiller,
+    });
+  }
+  return liste;
+}
+
+function markerIdAl(el: Element, ad: string): string | undefined {
+  const ham = el.getAttribute(ad)?.trim() ?? "";
+  const eslesme = ham.match(MARKER_URL_DESENI);
+  return eslesme ? eslesme[1] : undefined;
+}
+
+function markerSekliCiz(s: MarkerSekil, key: number): ReactNode {
+  switch (s.tur) {
+    case "path":
+      return <path key={key} d={s.d} fill={s.fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+    case "polygon":
+      return <polygon key={key} points={s.points} fill={s.fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+    case "polyline":
+      return <polyline key={key} points={s.points} fill={s.fill ?? "none"} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+    case "circle":
+      return <circle key={key} cx={s.cx} cy={s.cy} r={s.r} fill={s.fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+    case "ellipse":
+      return <ellipse key={key} cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry} fill={s.fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+    case "rect":
+      return <rect key={key} x={s.x} y={s.y} width={s.width} height={s.height} rx={s.rx} ry={s.ry} fill={s.fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+    case "line":
+      return <line key={key} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={s.stroke} strokeWidth={s.strokeWidth} />;
+  }
+}
+
+function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: DiyagramOgesi[]; markerler: MarkerTanimi[] } {
   const belge = new DOMParser().parseFromString(svg, "image/svg+xml");
   const kok = belge.documentElement;
-  if (kok.nodeName.toLowerCase() !== "svg" || belge.querySelector("parsererror")) return { viewBox: VARSAYILAN_VB, ogeler: [] };
+  if (kok.nodeName.toLowerCase() !== "svg" || belge.querySelector("parsererror")) {
+    return { viewBox: VARSAYILAN_VB, ogeler: [], markerler: [] };
+  }
   const vb = kok.getAttribute("viewBox")?.trim() ?? "";
   const viewBox = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(vb) && viewBoxCoz(vb).w > 0 && viewBoxCoz(vb).h > 0 ? vb : VARSAYILAN_VB;
+  const markerler = markerleriOku(kok);
   const ogeler: DiyagramOgesi[] = [];
   const sayi = (el: Element, ad: string, v = 0) => {
     const n = parseFloat(el.getAttribute(ad) ?? "");
@@ -914,6 +938,7 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
           tur: "yazi",
           x,
           y,
+          ozgunY: y,
           metin,
           boyut,
           ozgunBoyut: boyut,
@@ -925,38 +950,84 @@ function diyagramCoz(svg: string, anahtar: string): { viewBox: string; ogeler: D
         continue;
       }
       const kesikli = Boolean(cocuk.getAttribute("stroke-dasharray")?.trim().match(/^[\d.]+/));
+      const kalemRenk = stroke && stroke !== "none" ? stroke : "#1e1e1e";
+      const kalemKalinlik = Math.max(1, Math.min(6, sayi(cocuk, "stroke-width", 2.4)));
       const o: Options = {
         seed: tohum(`${anahtar}-${ogeler.length}`),
-        roughness: 0.55,
-        bowing: 0.45,
+        roughness: 0.2,
+        bowing: 0.22,
         preserveVertices: true,
-        disableMultiStroke: kesikli || Boolean(akis),
-        stroke: stroke && stroke !== "none" ? stroke : "#1e1e1e",
-        strokeWidth: Math.max(1, Math.min(6, sayi(cocuk, "stroke-width", 2.4))),
+        disableMultiStroke: true,
+        stroke: kalemRenk,
+        strokeWidth: kalemKalinlik,
         fill: fill && fill !== "none" && fill !== "transparent" ? fill : undefined,
         fillStyle: "solid",
       };
       let cizim: Drawable | null = null;
-      if (ad === "line") cizim = gen.line(sayi(cocuk, "x1"), sayi(cocuk, "y1"), sayi(cocuk, "x2"), sayi(cocuk, "y2"), o);
-      else if (ad === "rect") cizim = gen.rectangle(sayi(cocuk, "x"), sayi(cocuk, "y"), sayi(cocuk, "width"), sayi(cocuk, "height"), o);
-      else if (ad === "circle") cizim = gen.circle(sayi(cocuk, "cx"), sayi(cocuk, "cy"), sayi(cocuk, "r") * 2, o);
-      else if (ad === "ellipse") cizim = gen.ellipse(sayi(cocuk, "cx"), sayi(cocuk, "cy"), sayi(cocuk, "rx") * 2, sayi(cocuk, "ry") * 2, o);
-      else if (ad === "polyline" && noktalar(cocuk).length > 1) cizim = gen.linearPath(noktalar(cocuk), o);
-      else if (ad === "polygon" && noktalar(cocuk).length > 2) cizim = gen.polygon(noktalar(cocuk), o);
-      else if (ad === "path") {
+      let markerYol: string | undefined;
+      if (ad === "line") {
+        const x1 = sayi(cocuk, "x1");
+        const y1 = sayi(cocuk, "y1");
+        const x2 = sayi(cocuk, "x2");
+        const y2 = sayi(cocuk, "y2");
+        cizim = gen.line(x1, y1, x2, y2, o);
+        markerYol = `M${x1} ${y1} L${x2} ${y2}`;
+      } else if (ad === "rect") {
+        cizim = gen.rectangle(sayi(cocuk, "x"), sayi(cocuk, "y"), sayi(cocuk, "width"), sayi(cocuk, "height"), o);
+      } else if (ad === "circle") {
+        cizim = gen.circle(sayi(cocuk, "cx"), sayi(cocuk, "cy"), sayi(cocuk, "r") * 2, o);
+      } else if (ad === "ellipse") {
+        cizim = gen.ellipse(sayi(cocuk, "cx"), sayi(cocuk, "cy"), sayi(cocuk, "rx") * 2, sayi(cocuk, "ry") * 2, o);
+      } else if (ad === "polyline") {
+        const pts = noktalar(cocuk);
+        if (pts.length > 1) {
+          cizim = gen.linearPath(pts, o);
+          markerYol = `M${pts[0][0]} ${pts[0][1]} ${pts.slice(1).map(([px, py]) => `L${px} ${py}`).join(" ")}`;
+        }
+      } else if (ad === "polygon" && noktalar(cocuk).length > 2) {
+        cizim = gen.polygon(noktalar(cocuk), o);
+      } else if (ad === "path") {
         const d = cocuk.getAttribute("d")?.trim() ?? "";
-        if (d && d.length < 6000 && YOL_DESENI.test(d)) cizim = gen.path(d, o);
+        if (d && d.length < 6000 && YOL_DESENI.test(d)) {
+          cizim = gen.path(d, o);
+          markerYol = d;
+        }
       }
       if (cizim) {
         const kapali = ad === "rect" || ad === "circle" || ad === "ellipse" || ad === "polygon";
+        const markerStart = markerYol ? markerIdAl(cocuk, "marker-start") : undefined;
+        const markerEnd = markerYol ? markerIdAl(cocuk, "marker-end") : undefined;
+        const markerMid = markerYol ? markerIdAl(cocuk, "marker-mid") : undefined;
+        const markerVar = Boolean(markerStart || markerEnd || markerMid);
         const sonCizim = matris ? cizimDonustur(cizim, matris) : cizim;
         const sekilDonusumu = matris ? undefined : donusum || undefined;
-        ogeler.push({ tur: "sekil", cizim: sonCizim, donusum: sekilDonusumu, kapali, kesikli, sinir: cizimSiniri(sonCizim), hareket, akis });
+        const hamSinir = cizimSiniri(sonCizim);
+        const sinir =
+          hamSinir && markerVar
+            ? { x0: hamSinir.x0 - 10, y0: hamSinir.y0 - 10, x1: hamSinir.x1 + 10, y1: hamSinir.y1 + 10 }
+            : hamSinir;
+        ogeler.push({
+          tur: "sekil",
+          cizim: sonCizim,
+          donusum: sekilDonusumu,
+          kapali,
+          kesikli,
+          sinir,
+          hareket,
+          akis,
+          renk: kalemRenk,
+          kalinlik: kalemKalinlik,
+          markerYol: markerVar ? markerYol : undefined,
+          markerDonusum: matris && markerVar && donusum ? donusum : undefined,
+          markerStart,
+          markerEnd,
+          markerMid,
+        });
       }
     }
   };
   gez(kok, "");
-  return { viewBox, ogeler };
+  return { viewBox, ogeler, markerler };
 }
 
 const DIYAGRAM_MAKS_OLCEK = 1.25;
@@ -1002,25 +1073,80 @@ function DiyagramBlok({
   blokId: string;
   kutu: Blok["kutu"];
 }) {
+  const markerOnEk = `m${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const svgAnahtari = tumSvgler.join("\u0000");
-  const { cozumler, viewBox, gruplar } = useMemo(() => {
+  const { cozumler, viewBox, gruplar, tumMarkerler } = useMemo(() => {
     const c = svgAnahtari.split("\u0000").map((svg, i) => diyagramCoz(svg, `${blokId}-${i}`));
     const vb = diyagramHazirla(c.map((x) => x.ogeler), c[0]?.viewBox ?? VARSAYILAN_VB, kutu.w, kutu.h);
-    return { cozumler: c, viewBox: vb, gruplar: c.map((x) => grupSinirlari(x.ogeler)) };
+    const markerHaritasi = new Map<string, MarkerTanimi>();
+    for (const x of c) {
+      for (const m of x.markerler) markerHaritasi.set(m.id, m);
+    }
+    return { cozumler: c, viewBox: vb, gruplar: c.map((x) => grupSinirlari(x.ogeler)), tumMarkerler: markerHaritasi };
   }, [blokId, svgAnahtari, kutu.w, kutu.h]);
   return (
     <svg viewBox={viewBox} preserveAspectRatio="xMidYMin meet" overflow="hidden">
+      {tumMarkerler.size > 0 && (
+        <defs>
+          {[...tumMarkerler.values()].map((m) => (
+            <marker
+              key={m.id}
+              id={`${markerOnEk}-${m.id}`}
+              viewBox={m.viewBox}
+              refX={m.refX}
+              refY={m.refY}
+              markerWidth={m.markerWidth}
+              markerHeight={m.markerHeight}
+              orient={m.orient}
+              markerUnits={m.markerUnits}
+            >
+              {m.sekiller.map((s, si) => markerSekliCiz(s, si))}
+            </marker>
+          ))}
+        </defs>
+      )}
       {cozumler.slice(0, parcalar.length).map((c, ai) => {
         const ilerleme = c.ogeler.map((_, j) => parcaIlerlemesi(parcalar[ai].p, j, c.ogeler.length));
         const ogeCiz = (o: DiyagramOgesi, j: number) => {
           const p = ilerleme[j];
           if (p <= 0) return null;
+          if (o.tur === "yazi") {
+            return (
+              <g key={`${ai}-${j}`} transform={o.donusum}>
+                <Yazi x={o.x} y={o.y} metin={o.metin} boyut={o.boyut} renk={o.renk} hizala={o.hizala} p={p} />
+              </g>
+            );
+          }
+          const basId = o.markerStart && tumMarkerler.has(o.markerStart) ? o.markerStart : undefined;
+          const sonId = o.markerEnd && tumMarkerler.has(o.markerEnd) ? o.markerEnd : undefined;
+          const ortaId = o.markerMid && tumMarkerler.has(o.markerMid) ? o.markerMid : undefined;
           return (
             <g key={`${ai}-${j}`} transform={o.donusum}>
-              {o.tur === "sekil" ? (
-                <Kaba cizim={o.cizim} p={p} kesikli={o.kesikli} akis={o.akis} />
-              ) : (
-                <Yazi x={o.x} y={o.y} metin={o.metin} boyut={o.boyut} renk={o.renk} hizala={o.hizala} p={p} />
+              <Kaba cizim={o.cizim} p={p} kesikli={o.kesikli} akis={o.akis} />
+              {o.markerYol && basId && (
+                <path
+                  d={o.markerYol}
+                  transform={o.markerDonusum}
+                  fill="none"
+                  stroke={o.renk}
+                  strokeOpacity={0}
+                  strokeWidth={o.kalinlik}
+                  opacity={sinirla(p * 4)}
+                  markerStart={`url(#${markerOnEk}-${basId})`}
+                />
+              )}
+              {o.markerYol && (sonId || ortaId) && p >= 0.8 && (
+                <path
+                  d={o.markerYol}
+                  transform={o.markerDonusum}
+                  fill="none"
+                  stroke={o.renk}
+                  strokeOpacity={0}
+                  strokeWidth={o.kalinlik}
+                  opacity={sinirla((p - 0.8) * 5)}
+                  markerEnd={sonId ? `url(#${markerOnEk}-${sonId})` : undefined}
+                  markerMid={ortaId ? `url(#${markerOnEk}-${ortaId})` : undefined}
+                />
               )}
             </g>
           );
@@ -1231,27 +1357,11 @@ const NOT_SATIR = 31;
 const LATEX_H = 60;
 const SATIR_BOSLUK = 18;
 
-function satirlaraBol(metin: string, genislik: number, boyut: number) {
-  const maks = Math.max(boyut * 4, genislik - 24);
-  const satirlar: string[] = [];
-  let mevcut = "";
-  for (const kelime of metin.split(/\s+/).filter(Boolean)) {
-    if (!mevcut) mevcut = kelime;
-    else if (yaziGenisligi(`${mevcut} ${kelime}`, boyut) <= maks) mevcut += " " + kelime;
-    else {
-      satirlar.push(mevcut);
-      mevcut = kelime;
-    }
-  }
-  if (mevcut) satirlar.push(mevcut);
-  return satirlar;
-}
-
 function formulDuzeni(aksiyonlar: FormulAksiyonu[], kutuW: number, kutuH: number) {
   const hesapla = (w: number) => {
     let y = 6;
     const satirlar = aksiyonlar.map((a) => {
-      const notlar = a.not ? satirlaraBol(duzYaziyaCevir(a.not), w, NOT_BOYUT) : [];
+      const notlar = a.not ? satirlaraBol(duzYaziyaCevir(a.not), Math.max(NOT_BOYUT * 4, w - 24), NOT_BOYUT) : [];
       const satir = { y, notlar };
       y += (a.latex ? LATEX_H + 12 : 0) + notlar.length * NOT_SATIR + SATIR_BOSLUK;
       return satir;
@@ -1350,6 +1460,50 @@ type SahneProps = {
   ilTiklama?: (plaka: number, ad: string) => void;
 };
 
+function blokIcerigi({
+  blok,
+  liste,
+  tumBlokAksiyonlari,
+  blokId,
+  ilTiklama,
+}: {
+  blok: Blok;
+  liste: Parca[];
+  tumBlokAksiyonlari: Aksiyon[];
+  blokId: string;
+  ilTiklama?: (plaka: number, ad: string) => void;
+}): ReactNode {
+  switch (blok.tip) {
+    case "turkiye_haritasi":
+      return <HaritaBlok parcalar={liste as Parca<HaritaAksiyonu>[]} ilTiklama={ilTiklama} kutu={blok.kutu} />;
+    case "matematik_grafigi":
+      return <GrafikBlok parcalar={liste as Parca<GrafikAksiyonu>[]} blokId={blokId} kutu={blok.kutu} />;
+    case "geometri_ve_diyagram":
+      return (
+        <DiyagramBlok
+          parcalar={liste as Parca<DiyagramAksiyonu>[]}
+          tumSvgler={(tumBlokAksiyonlari as DiyagramAksiyonu[]).map((a) => a.svg)}
+          blokId={blokId}
+          kutu={blok.kutu}
+        />
+      );
+    case "geometri":
+      return <GeometriBlok parcalar={liste as Parca<GeometriAksiyonu>[]} blokId={blokId} kutu={blok.kutu} />;
+    case "akis_semasi":
+      return <AkisSemasiBlok parcalar={liste as Parca<AkisSemasiAksiyonu>[]} blokId={blokId} kutu={blok.kutu} />;
+    case "zaman_cizelgesi":
+      return <ZamanCizelgesiBlok parcalar={liste as Parca<ZamanCizelgesiAksiyonu>[]} blokId={blokId} kutu={blok.kutu} />;
+    case "tablo":
+      return <TabloBlok parcalar={liste as Parca<TabloAksiyonu>[]} blokId={blokId} kutu={blok.kutu} />;
+    case "hazir_sahne":
+      return <HazirSahneBlok parcalar={liste as Parca<HazirSahneAksiyonu>[]} blokId={blokId} kutu={blok.kutu} />;
+    case "formul_ve_not":
+      return <FormulBlok parcalar={liste as Parca<FormulAksiyonu>[]} tumAksiyonlar={tumBlokAksiyonlari as FormulAksiyonu[]} kutu={blok.kutu} />;
+    case "fotograf":
+      return null;
+  }
+}
+
 const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilTiklama }: SahneProps) {
   const katman = aktifKatman(sahne, vurusSira);
   const bloklar = useMemo(() => yerlesim(sahne, { katman }), [sahne, katman]);
@@ -1413,27 +1567,17 @@ const SahneKatmani = memo(function SahneKatmani({ sahne, sira, vurusSira, p, ilT
               </g>
             ) : null;
           }
-          const liste = parcalar.get(b.id);
+          const liste = parcalar.get(b.id)?.filter((x) => x.aksiyon.tip === b.tip);
           if (!liste?.length) return null;
-          const ic =
-            b.tip === "turkiye_haritasi" ? (
-              <HaritaBlok parcalar={liste as Parca<HaritaAksiyonu>[]} ilTiklama={ilTiklama} kutu={b.kutu} />
-            ) : b.tip === "matematik_grafigi" ? (
-              <GrafikBlok parcalar={liste as Parca<GrafikAksiyonu>[]} blokId={`${sira}-${b.id}`} kutu={b.kutu} />
-            ) : b.tip === "geometri_ve_diyagram" ? (
-              <DiyagramBlok
-                parcalar={liste as Parca<DiyagramAksiyonu>[]}
-                tumSvgler={((tumAksiyonlar.get(b.id) ?? []) as DiyagramAksiyonu[]).map((a) => a.svg)}
-                blokId={`${sira}-${b.id}`}
-                kutu={b.kutu}
-              />
-            ) : (
-              <FormulBlok
-                parcalar={liste as Parca<FormulAksiyonu>[]}
-                tumAksiyonlar={(tumAksiyonlar.get(b.id) ?? []) as FormulAksiyonu[]}
-                kutu={b.kutu}
-              />
-            );
+          const tumBlokAksiyonlari = (tumAksiyonlar.get(b.id) ?? []).filter((a) => a.tip === b.tip);
+          const ic = blokIcerigi({
+            blok: b,
+            liste,
+            tumBlokAksiyonlari,
+            blokId: `${sira}-${b.id}`,
+            ilTiklama,
+          });
+          if (!ic) return null;
           return (
             <svg key={b.id} data-blok={b.id} x={b.kutu.x} y={b.kutu.y} width={b.kutu.w} height={b.kutu.h} overflow="hidden">
               {ic}

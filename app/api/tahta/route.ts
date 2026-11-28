@@ -3,18 +3,55 @@ import { duzYaziyaCevir, latexKacisOnar } from "@/lib/metin-temizle";
 import { dersNotu } from "@/lib/ders-rehberi";
 import { dersAdiTemizle } from "@/lib/dersler";
 import type {
+  AkisBaglantisi,
+  AkisDugum,
+  AkisDugumSekli,
+  AkisGrubu,
+  AkisSemasiAksiyonu,
+  AkisYon,
   Aksiyon,
   BaglantiOku,
   Bolge,
+  EgikDuzlemKuvvet,
+  EgikDuzlemSablonu,
+  ElektrikDevresiEleman,
+  ElektrikDevresiSablonu,
+  GeometriAci,
+  GeometriAksiyonu,
+  GeometriCember,
+  GeometriCokgen,
+  GeometriDogru,
+  GeometriEtiket,
+  GeometriNokta,
+  GeometriYukseklik,
   GrafikFonksiyonu,
   GrafikNoktasi,
+  HazirSahneAksiyonu,
+  HucreKesitiSablonu,
+  HucreOrganeli,
+  IkonIzgarasiOge,
+  KuvvetDengesiKuvvet,
+  KuvvetDengesiSablonu,
   MiniGorev,
   OgretmenModu,
+  OptikDuzenekSablonu,
+  PiramitKatmani,
+  PiramitSablonu,
   Sahne,
   Seviye,
+  TabloAksiyonu,
+  TabloVurgusu,
+  TepkimeKabiSablonu,
+  TepkimeKabiTanecik,
+  TeraziKefe,
+  TeraziSablonu,
   TestSorusu,
+  VennKumesi,
   VurgulananIl,
   Vurus,
+  ZamanCizelgesiAksiyonu,
+  ZamanCizelgesiYon,
+  ZamanOlayi,
 } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -26,64 +63,65 @@ const SEVIYE_ACIKLAMA: Record<Seviye, string> = {
   universite: "Üniversite öğrencisi: akademik terminoloji, ispat/gerekçe ve ileri bağlantılarla anlatım.",
 };
 
-const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ÇOK ÖNEMLİ):
-- ASLA serbest çizim (freedraw), [x,y] nokta listesi veya koordinatla elle şekil çizme. Harita, organ, nesne gibi karmaşık şekilleri koordinatla çizmeye çalışma.
-- Tahtaya yalnızca aşağıdaki YAPISAL GÖRSEL BLOKLARI "aksiyonlar" ile ekle. Her aksiyonun "gorsel" alanı bir blok kimliğidir (ör. "h1"); aynı kimliği tekrar kullanınca o bloğa yeni parça eklenir. Bir sahnede en fazla 3 blok olsun; yerleşimi uygulama otomatik yapar.
-1) {"tip":"turkiye_haritasi","gorsel":"h1","vurgulananIller":[{"plaka":6,"ad":"Ankara","renk":"#e03131","etiket":"Başkent"}],"bolgeRenkleri":{"ic-anadolu":"#fff3bf"},"baglantiOklari":[{"neredenPlaka":34,"nereyePlaka":6,"etiket":"göç"}]}
-   → Türkiye, iller, bölgeler, coğrafi dağılım konularında ZORUNLU. Gerçek 81 il haritası çizilir; sen sadece plaka numarası verirsin. Bölge anahtarları: marmara, ege, akdeniz, ic-anadolu, karadeniz, dogu-anadolu, guneydogu-anadolu. Haritanın ilk aksiyonu boş da olabilir (sadece haritayı çizer).
-2) {"tip":"matematik_grafigi","gorsel":"g1","xAralik":[-5,5],"yAralik":[-2,10],"fonksiyonlar":[{"ifade":"x^2-2*x+1","renk":"#1971c2","etiket":"f(x)"}],"noktalar":[{"x":1,"y":0,"etiket":"Tepe"}]}
-   → fonksiyon, doğru, parabol, fizik grafikleri (konum-zaman vb.). Eğriyi SEN hesaplama; sadece ifade yaz. İfadede x, sayılar, + - * / ^, parantez, sin cos tan sqrt abs ln log exp, pi kullan. xAralik/yAralik grafiğin ilk aksiyonunda zorunlu.
-3) {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
-   → akış şeması, zaman çizelgesi, üçgen/çember/açı, kuvvet diyagramı, devre, hücre/atom/molekül şeması. SADECE path, circle, ellipse, rect, line, polyline, polygon, text, g etiketleri; viewBox='0 0 800 460'; fill='none' veya açık ton dolgu, stroke='#1e1e1e', yazılar için <text x y font-size fill>. Aynı bloğa sonraki aksiyonlarda yeni parçalar ekleyebilirsin (aynı koordinat sistemi). Script, style, image, href, on* YASAK. SVG içinde tek tırnak kullan.
-4) {"tip":"formul_ve_not","gorsel":"f1","latex":"F = m \\\\cdot a","not":"kısa el yazısı not","renk":"formul","altiCizili":true}
-   → formül (KaTeX sözdizimi, JSON'da ters bölüyü \\\\ olarak kaçır) ve/veya kısa not satırı. Her aksiyon bloğa bir satır ekler. "latex" alanına SADECE matematik yaz; düz cümle/açıklama (\\\\text{...}) "not" alanına gider. "not" alanına renk adı yazma, renk "renk" alanındadır.
-5) {"tip":"vurgula","gorsel":"h1"} → daha önce çizilmiş bloğu lazer halkasıyla gösterir.
+const GORSEL_KURALLARI = `TAHTA ÇİZİM KURALLARI (ASTRA AI ÖNCELİK SIRASI — ÇOK ÖNEMLİ):
+- ASLA serbest çizim (freedraw) veya koordinatla elle şekil uydurma. Tahtaya yalnızca aşağıdaki YAPISAL GÖRSEL BLOKLARI "aksiyonlar" ile ekle.
+- Her aksiyonun "gorsel" alanı bir blok kimliğidir (ör. "geo1", "ak1", "f1"). Aynı kimliği sonraki vuruşlarda tekrar kullanınca o bloğa yeni parça/satır/olay eklenir. Bir sahnede en fazla 3 blok olsun; yerleşimi uygulama otomatik yapar (ana görsel solda, formul_ve_not sağda).
+- ÖNCELİK HİYERARŞİSİ (1 → 8 sırasıyla kontrol et; ilk uyan yapısal bloğu SEÇMEK ZORUNLUDUR — 1–7'den biri uyuyorsa ASLA 8 numara ham SVG yazma):
+1) turkiye_haritasi (Türkiye, iller, bölgeler, coğrafi dağılım — ZORUNLU):
+   {"tip":"turkiye_haritasi","gorsel":"h1","vurgulananIller":[{"plaka":6,"ad":"Ankara","renk":"#e03131","etiket":"Başkent"}],"bolgeRenkleri":{"ic-anadolu":"#fff3bf"},"baglantiOklari":[{"neredenPlaka":34,"nereyePlaka":6,"etiket":"göç"}]}
+   Bölgeler: marmara, ege, akdeniz, ic-anadolu, karadeniz, dogu-anadolu, guneydogu-anadolu. İlk aksiyon boş da olabilir (temel haritayı çizer).
+2) matematik_grafigi (Fonksiyon, doğru, parabol, konum-zaman/hız-zaman grafikleri — ZORUNLU):
+   {"tip":"matematik_grafigi","gorsel":"g1","xAralik":[-5,5],"yAralik":[-2,10],"fonksiyonlar":[{"ifade":"x^2-2*x+1","renk":"#1971c2","etiket":"f(x)"}],"noktalar":[{"x":1,"y":0,"etiket":"Tepe"}]}
+   Eğriyi SEN hesaplama; ifade yaz (x, + - * / ^, sin cos tan sqrt abs ln log exp, pi). İlk aksiyonda xAralik ve yAralik zorunlu.
+3) geometri (Üçgen, dörtgen, çokgen, çember, yay, açı, diklik, yükseklik, benzerlik, koordinat geometrisi — ZORUNLU):
+   {"tip":"geometri","gorsel":"geo1","noktalar":[{"ad":"A","x":0,"y":4},{"ad":"B","x":0,"y":0},{"ad":"C","x":6,"y":0}],"cokgenler":[{"noktalar":["A","B","C"],"dolgu":"#e7f5ff"}],"dogrular":[{"a":"A","b":"B","etiket":"4","esitlik":1},{"a":"B","b":"C","etiket":"6"},{"a":"A","b":"C"}],"acilar":[{"a":"A","kose":"B","c":"C","dik":true},{"a":"B","kose":"C","c":"A","etiket":"α","yaySayisi":1}],"yukseklikler":[{"tepe":"A","tabanA":"B","tabanB":"C","etiket":"h","dikIsareti":true,"kesikli":true}],"cemberler":[{"merkez":"O","r":3,"etiket":"r = 3"}],"etiketler":[{"metin":"Alan = 12","x":3,"y":-1}],"koordinatGoster":false}
+   Matematiksel Kartezyen koordinat kullan (y yukarı artar, örn. 0..10 veya -5..5); köşe yerleşimi, dik açı karesi ve açı yayları otomatik çizilir.
+   noktalar: ad, x, y, etiket?, renk?, gizli?, konum? ("ust"|"alt"|"sol"|"sag"|"otomatik"). dogrular: a, b, etiket?, tur? ("dogru_parcasi"|"dogru"|"isin"), kesikli?, renk?, kalinlik?, esitlik? (1|2|3). cemberler: merkez, r, renk?, dolgu?, kesikli?, etiket?, baslangicAci?, bitisAci?. acilar: a, kose, c, dik?, etiket?, renk?, yaySayisi? (1|2|3), yaricap?. yukseklikler: tepe, tabanA, tabanB, ayak?, etiket?, dikIsareti?, kesikli?, renk?.
+4) akis_semasi (Akış şeması, kavram haritası, neden-sonuç ağacı, döngü, algoritma, süreç — ZORUNLU):
+   {"tip":"akis_semasi","gorsel":"ak1","yon":"TB","dugumler":[{"id":"n1","etiket":"Başla","sekil":"oval","dolgu":"#ebfbee"},{"id":"n2","etiket":"x > 0 mı?","altEtiket":"karar","sekil":"elmas","ikon":"disli","dolgu":"#fff3bf"}],"baglantilar":[{"kaynak":"n1","hedef":"n2","etiket":"girdi","akis":true,"kesikli":false,"ciftYon":false}],"gruplar":[{"id":"g1","baslik":"Kontrol","dugumler":["n2"],"dolgu":"#f8f9fa"}]}
+   yon: "TB" | "LR". sekil: "kutu" | "yuvarlak" | "oval" | "elmas" | "daire" | "paralelkenar". Düğümlerde isteğe bağlı "ikon" kullanabilirsin. Yerleşim ve ok yönlendirmesi otomatik yapılır.
+5) zaman_cizelgesi (Kronoloji, tarihî dönemler, çağlar, evreler, zamanlar — ZORUNLU):
+   {"tip":"zaman_cizelgesi","gorsel":"zc1","baslik":"Kurtuluş Savaşı","yon":"yatay","olaylar":[{"tarih":"1919","baslik":"Samsun'a Çıkış","aciklama":"Millî Mücadele başlar","ikon":"bayrak","vurgulu":true,"renk":"vurgu"},{"tarih":"1920","baslik":"TBMM Açılışı","aralik":"1920–1922"}]}
+   yon: "yatay" | "dikey". Olaylarda isteğe bağlı "ikon" kullanabilirsin.
+6) tablo (Karşılaştırma, sınıflandırma, özellik/veri/doğruluk/Punnett tablosu — ZORUNLU):
+   {"tip":"tablo","gorsel":"tb1","baslik":"Karşılaştırma","basliklar":["Ölçüt","Divan","Halk"],"satirlar":[["Ölçü","Aruz","Hece"],["Dil","Ağır","Sade"]],"sutunRenkleri":["","#e7f5ff","#ebfbee"],"vurgular":[{"satir":0,"sutun":2,"renk":"sonuc","not":"Millî ölçü"}]}
+   vurgular içindeki satir ve sutun 0-tabanlı indekstir.
+7) hazir_sahne (Fen düzenekleri ve görsel metaforlar — ZORUNLU; aşağıdaki 11 "sablon" türünden birini kullan):
+   - egik_duzlem: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"egik_duzlem","aci":30,"aciEtiketi":"30°","cisimEtiketi":"m","kuvvetler":[{"yon":"agirlik","etiket":"G"},{"yon":"normal","etiket":"N"},{"yon":"surtunme","etiket":"fs"}],"surtunme":true,"hareket":"asagi","yukseklikEtiketi":"h","uzunlukEtiketi":"L"} (kuvvet yon: "yukari"|"asagi"|"normal"|"yatay"|"agirlik"|"surtunme"; hareket: "yukari"|"asagi"|"durgun").
+   - elektrik_devresi: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"elektrik_devresi","duzen":"seri","kaynak":{"gerilim":"12 V","etiket":"V"},"elemanlar":[{"tur":"direnc","etiket":"R₁","deger":"4 Ω"},{"tur":"ampul","etiket":"L"},{"tur":"anahtar","kapali":true}],"akimYonu":"saat","akimEtiketi":"I = 2 A"} (duzen: "seri"|"paralel"|"karisik"; eleman tur: "direnc"|"ampul"|"anahtar"|"ampermetre"|"voltmetre"|"kondansator"|"pil"; paralel için kol: 0,1...).
+   - optik_duzenek: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"optik_duzenek","tur":"cukur_ayna","odakEtiketi":"F","merkezEtiketi":"M","cisim":{"konum":"merkez_disi","boy":2,"etiket":"Cisim"},"goruntu":{"goster":true,"etiket":"Görüntü"},"isinlar":true} (tur: "cukur_ayna"|"tumsek_ayna"|"duz_ayna"|"ince_mercek"|"kalin_mercek"; konum: "merkez_disi"|"merkezde"|"odak_merkez_arasi"|"odakta"|"odak_ayna_arasi" veya sayı).
+   - kuvvet_dengesi: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"kuvvet_dengesi","cisim":{"sekil":"kutu","etiket":"m"},"zemin":"yatay","kuvvetler":[{"etiket":"F₁","aci":0,"buyukluk":10},{"etiket":"F₂","aci":180,"buyukluk":4}],"bileske":{"etiket":"R = 6 N","goster":true}} (aci: 0 sağ, 90 yukarı, 180 sol, 270 aşağı; zemin: "yatay"|"yok"|"ip"; sekil: "kutu"|"daire"|"nokta").
+   - atom_modeli: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"atom_modeli","sembol":"Na","ad":"Sodyum","proton":11,"notron":12,"katmanlar":[2,8,1],"yuk":"+1","animasyon":true}
+   - tepkime_kabi: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"tepkime_kabi","kap":"iki_kap","baslik":"Tepkime","girenler":[{"etiket":"H₂","sayi":2,"faz":"gaz"}],"urunler":[{"etiket":"H₂O","sayi":2,"faz":"sivi"}],"isi":true,"piston":false,"etiket":"ΔH < 0"} (kap: "beher"|"erlen"|"tup"|"iki_kap"; tek kapta "tanecikler" kullan; faz: "kati"|"sivi"|"gaz").
+   - hucre_kesiti: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"hucre_kesiti","tur":"bitki","baslik":"Bitki Hücresi","organeller":[{"ad":"Kloroplast","aciklama":"Fotosentez yapar","vurgulu":true}]} (tur: "hayvan"|"bitki"|"prokaryot").
+   - terazi: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"terazi","baslik":"Denge","sol":{"baslik":"Sol","maddeler":["2x + 3"],"agirlik":11},"sag":{"baslik":"Sağ","maddeler":["11"],"agirlik":11},"denge":"esit","merkezEtiket":"="} (denge: "esit"|"sol_agir"|"sag_agir").
+   - piramit: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"piramit","baslik":"Piramit","yon":"alttan_uste","katmanlar":[{"baslik":"Taban","altMetin":"Temel","vurgulu":true},{"baslik":"Tepe"}],"yanEtiket":"Artış ↑"} (yon: "ustten_alta"|"alttan_uste").
+   - venn: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"venn","baslik":"Kümeler","kumeler":[{"ad":"A","elemanlar":["1","2"]},{"ad":"B","elemanlar":["2","3"]}],"kesisim":["2"],"evrensel":"E"}
+   - ikon_izgarasi: {"tip":"hazir_sahne","gorsel":"hs1","sablon":"ikon_izgarasi","baslik":"Adımlar","sutunSayisi":3,"ogeler":[{"ikon":"gunes","baslik":"Buharlaşma","altMetin":"Isı"},{"ikon":"bulut","baslik":"Yoğuşma"}]}
+     İzinli ikon adları: gunes, bulut, yagmur, dunya, dag, agac, yaprak, kalp, akciger, noron, dna, mikroskop, pil, ampul, direnc, anahtar, miknatis, disli, merdiven, kopru, kalkan, kitap, kalem, parsomen, saat, ev, bayrak, insan, terazi, beher, atom, damla, simsek, yildiz, termometre, pusula.
+8) geometri_ve_diyagram (Ham SVG — SON ÇARE! YALNIZCA yukarıdaki 1–7 yapısal blokların HİÇBİRİNE sığmayan özgün çizimler için: örn. şiir/dize kafiye işaretlemesi, cümle ögeleri alt çizgisi, özel harita/organ kesiti, sarkaç/atış animasyonu, çöp adam/konuşma balonu):
+   {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'>...</svg>"}
+   Ham SVG kuralları:
+   - viewBox='0 0 800 460'; tüm şekil ve yazılar x 40-760, y 40-420 içinde; tek tırnak kullan.
+   - İzinli etiketler: defs, marker, path, circle, ellipse, rect, line, polyline, polygon, text, g (script, style, foreignObject, image, iframe, on*, dış href YASAK).
+   - Oklar için <defs><marker id='ok' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 1 L10 5 L0 9 z' fill='#1e1e1e'/></marker></defs> tanımlayıp marker-end='url(#ok)' / marker-start='url(#ok)' kullan; elle ok üçgeni tekrarlama.
+   - Pastel dolgular (#e7f5ff, #fff3bf, #ebfbee, #fff0f6, #f3f0ff, #fff4e6), stroke='#1e1e1e', stroke-width='2-3', yardımcı çizgide stroke-dasharray='6 6'; etiketler 18-24 font-size, max ~28 karakter.
+   - Hareket/süreç animasyonunda nesne+etiketi <g data-anim='...'> içine al: 'kay' (data-dx, data-dy, data-ivme='hizlan'|'yavasla'|'sabit'), 'yol' (data-yol='M0 0 ...', data-yonelim='evet'), 'gidipgel' (data-dx, data-dy), 'salin' (data-merkez='x y', data-aci), 'don' (data-merkez='x y', data-yon='-1'), 'nabiz', 'akis' (çizgi/tel üstünde akan kesik). Sabit yazılar <g> dışında kalsın; en fazla 2-3 animasyon grubu.
+9) formul_ve_not (Formül ve kısa el yazısı not — sağ yardımcı alan):
+   {"tip":"formul_ve_not","gorsel":"f1","latex":"F = m \\\\cdot a","not":"kısa el yazısı not","renk":"formul","altiCizili":true}
+   "latex" içine SADECE matematik yaz (JSON'da \\\\ kaçışı ile); düz açıklama "not" alanına gider; "not" içine renk adı yazma.
+10) vurgula: {"tip":"vurgula","gorsel":"h1"} → daha önce çizilmiş bloğu lazer halkasıyla gösterir.
 Renkler: "#hex" veya "baslik" (lacivert), "formul" (mor), "vurgu" (kırmızı), "sonuc" (yeşil), "normal" (siyah).
-DİYAGRAM DÜZENİ (geometri_ve_diyagram için ZORUNLU — tahta düzenli ve estetik görünmeli):
-- Her şey viewBox içinde kalsın: tüm şekil ve yazılar x 40-760, y 40-420 arasında olsun; kenara yapışma, dışarı taşma.
-- Önce ızgara planla: karşılaştırılan nesneleri (ör. iki top, iki kap, önce/sonra) EŞİT aralıklı sütunlara yerleştir — 2 nesne için merkezler x=240 ve x=560, 3 nesne için x=160, 400, 640. Hepsi aynı y merkezinde ve aynı boyutta olsun.
-- Bir nesnenin etiketi/açıklaması DAİMA o nesnenin tam altında, yatayda ortalı olsun: text-anchor='middle' ve x = nesnenin merkez x'i (cx), y = nesnenin alt kenarı + 30. Aynı satırdaki tüm etiketler aynı y değerini kullansın. Yazıyı nesnenin sağına/soluna kaydırma.
-- Ok ve kuvvet etiketleri okun ucuna yakın, oku kesmeyecek şekilde yazılsın; başlık benzeri yazılar üstte ortalı (x=400, text-anchor='middle').
-- Yazılar 18-24 font-size, en fazla ~28 karakter; uzun açıklamayı diyagrama değil formul_ve_not notuna yaz. Yazılar birbirinin ve şekillerin üstüne binmesin.
-- Aynı bloğa sonraki vuruşlarda eklenen parçalar ilk planladığın ızgaraya uysun (ikinci top ilk topun hizasında, etiketi de ilk etiketle aynı y'de).
-DİYAGRAM KALİTESİ (geometri_ve_diyagram — çizimler ders kitabı kalitesinde, açıklayıcı ve dolu olmalı):
-- Basit/boş şema çizme. Konunun gerçek parçalarını ayrı ayrı çiz ve etiketle; bir diyagram tüm vuruşlarıyla birlikte genellikle 12-40 öğeden oluşsun. Örnekler: hücre → zar, sitoplazma, çekirdek, çekirdekçik, mitokondri, ribozom, koful; kuvvet diyagramı → cisim, taralı zemin, her kuvvet için ayrı ok ve etiketi; devre → pil (uzun/kısa çizgi), direnç (zikzak), ampul, anahtar, akım yönü oku; üçgen → köşe harfleri, kenar uzunlukları, açı yayları ve dik açı kare işareti.
-- Gerçek oranlara sadık kal. Eğri ve organik şekillerde (organ, yaprak, dalga, yörünge) path içinde Q/C eğrileri kullan; her şeyi dikdörtgenle geçiştirme.
-- Ok çizimi: gövde için <line>, ucunda okun yönüne bakan küçük dolu <polygon> üçgen (yaklaşık 14px). marker, defs, use YASAK (desteklenmez).
-- Parçaları ayırt etmek için açık pastel dolgular kullan: #e7f5ff (mavi), #fff3bf (sarı), #ebfbee (yeşil), #fff0f6 (pembe), #f3f0ff (mor), #fff4e6 (turuncu). Kontur stroke-width 2-3. Vurgulanan parçanın konturu renkli olsun: #e03131, #1971c2, #2f9e44, #7048e8.
-- Yardımcı, ölçü ve izdüşüm çizgilerinde stroke-dasharray='6 6' kullan.
-- Etiket parçadan uzaktaysa parçadan etikete ince bir kılavuz çizgi (stroke-width 1.5) çek; etiketler 1-3 kelime olsun.
-DİYAGRAM ANİMASYONU (hareket, değişim veya süreç anlatılırken KULLAN — ok tek başına yetmez, nesnenin kendisi hareket etsin):
-- Hareket eden nesneyi (top, araba, elektron, gezegen, sarkaç, kan hücresi...) ve ona ait etiketi tek bir <g> içine al ve <g>'ye data-anim ekle. Grup, çizimi bittiği anda canlanır; bu yüzden hareketli nesneyi hareketin anlatıldığı vuruşta çiz, önceki vuruşta aynı nesneyi durağan çizip tekrar çizme. Yön okunu ve yolu (kesikli çizgi) yine durağan çiz; nesne okun gösterdiği yönde hareket etsin.
-- data-anim türleri:
-  · 'kay': data-dx, data-dy kadar kayar (ör. top okun ucuna gider). İsteğe bağlı data-ivme='hizlan' (serbest düşme, kuvvet etkisinde hızlanma), 'yavasla' (sürtünmeyle durma), 'sabit' (sabit hız).
-  · 'yol': data-yol boyunca ilerler; yol nesnenin bulunduğu yerden başlayan GÖRELİ bir path'tir ve 'M0 0' ile başlar (ör. eğik atış: data-yol='M0 0 Q180 -220 360 0'). data-yonelim='evet' nesneyi yola göre döndürür (araba, roket).
-  · 'gidipgel': data-dx/data-dy kadar gidip geri gelir (yay, piston, titreşen tanecik, dalga).
-  · 'salin': data-merkez='x y' asılma noktası etrafında ±data-aci derece sallanır (sarkaç, salıncak). Asılma ipi de gruba dahil olsun.
-  · 'don': data-merkez etrafında sürekli döner (çark, gezegen yörüngesi, elektron; yörüngede dönme için merkez = yörüngenin merkezi). data-yon='-1' ters yön.
-  · 'nabiz': yerinde büyüyüp küçülür (kalp atışı, vurgulanan sonuç, patlama noktası).
-  · 'akis': çizginin üzerinde akan kesikli desen oluşturur; akım yönü, kan/su/hava akışı, enerji aktarımı için tel veya boru çizgisine (ya da onları içeren <g>'ye) ekle. data-yon='-1' akışı ters çevirir.
-- 'kay' ve 'yol' hareketlerinde nesnenin başlangıç konumunda soluk bir izi otomatik kalır; başlangıç ve bitiş için ayrı ayrı nesne çizme, tek hareketli nesne yeter. Hareketli nesnenin etiketi gruba dahil olsun ki onunla birlikte gitsin; sabit kalması gereken yazıları (ör. "zemin", "h = 20 m") grubun DIŞINA yaz.
-- Ortak: data-sure saniye (varsayılan 1-4), data-gecikme saniye, data-tekrar='1' sadece bir kez oynatır ve sonda bırakır (varsayılan sürekli tekrar).
-- Hareket bittiğinde nesne x 40-760, y 40-420 içinde kalsın. Bir diyagramda en fazla 2-3 hareketli grup olsun; durağan kavramları (tanımlar, tablolar, geometri ispatı) canlandırma.
-- Örnek: <g data-anim='kay' data-dx='300' data-dy='0' data-ivme='hizlan'><circle cx='180' cy='300' r='30' fill='#e7f5ff' stroke='#1971c2'/><text x='180' y='360' text-anchor='middle' font-size='20'>m</text></g>
-- <text> içine YALNIZCA düz yazı yaz. LaTeX, $, ters bölü komutları (text, frac, vec...), ^{ } ve _{ } YASAK. Üs/indis ve semboller için Unicode kullan: x², v₀, F₁, 30°, Δx, √2, π, ½, ≤, →.
-YAZI ALANLARI: "not", "etiket", "ad", "yonerge", "miniSoru" alanları DÜZ METİNDİR; içlerine LaTeX komutu, $ veya ters bölü yazma, gerekirse Unicode sembol kullan. LaTeX yalnızca formul_ve_not içindeki "latex" alanına yazılır.`;
+YAZI ALANLARI: "not", "etiket", "altEtiket", "ad", "baslik", "aciklama", "satirlar", "yonerge", "miniSoru" ve SVG <text> DÜZ METİNDİR; LaTeX, $ veya ^{ } / _{ } yazma, Unicode kullan (x², v₀, F₁, 30°, Δx, √2, π, ½, ≤, →, ⊥).`;
 
-const YARATICI_TAHTA = `YARATICI TAHTA ANLATIMI (YouTube'daki çizimli anlatım videoları gibi; HER DERSTE ZORUNLU):
-- Her ders görselleştirilir. Sözel derslerde de (edebiyat, tarih, felsefe, din, dil bilgisi, yabancı dil) asla yalnızca yazıyla anlatma. Her söylenen fikrin tahtada bir görsel karşılığı olsun.
-- Tahtayı boş bırakma. Vuruşların en az üçte ikisinde tahtaya bir şey eklensin; aksiyonsuz vuruş arka arkaya ikiden fazla olmasın (yalnızca başlığı tanıtan ilk vuruş boş olabilir). Her sahnede en az bir geometri_ve_diyagram, turkiye_haritasi veya matematik_grafigi bloğu olsun; bir sahneyi yalnızca formul_ve_not ile geçirme.
-- Bir ana resmi parça parça kur: sahnenin ana çizimini (sahne, kavram haritası, zaman çizelgesi, kesit) vuruşlar boyunca aynı bloğa adım adım ekle. Birbirinden kopuk küçük resimler yerine anlatımla birlikte büyüyen tek bir tablo olsun.
-- Soyutu somutlaştır: soyut kavramlar için akılda kalan bir METAFOR bul ve çiz. Örnekler: denge için terazi, süreç için dişli çarklar, gelişim için merdiven, bağlantı için köprü, temel fikir için evin temeli, karar için yol ayrımı, bellek için dosya dolabı, fikir için ampul, koruma için kalkan.
-- Kullanabileceğin anlatım kalıpları: önce/sonra iki panel, neden → sonuç zinciri, döngü okları, yakınlaştırma (büyüteç dairesi + kesikli çizgilerle detay kutusu), karşılaştırma tablosu, kavram haritası, zaman çizelgesi, ağaç şeması, piramit, akış şeması.
-- Karakter kullan: insanları, yazarları, tarihî kişileri, örnek öğrenciyi basit çöp adam veya büst olarak çiz (baş daire, gövde ve kollar çizgi); konuşma balonu (yuvarlak dikdörtgen + küçük kuyruk üçgeni) ve düşünce balonu (bulut + küçük daireler) ile konuştur.
-- Basit ikonlar (yalnızca temel şekillerle çizilir): güneş (sarı daire + 8 ışın çizgisi), bulut (C eğrili path ile yan yana tümsekler, açık mavi dolgu), dünya (daire + ekvator elipsi + kıta lekeleri path), dağ (üçgen polygon + karlı tepe), ağaç (gövde dikdörtgen + yaprak bulutu), damla, kitap, kalem, ampul, kalp, göz, saat, ev, bayrak, parşömen, terazi, kupa.
-- Sahneye bağlam kat: yer, ortam veya duygu anlatılıyorsa arka plan ögelerini (ufuk çizgisi, güneş, bulut, bina, deniz dalgası) hafifçe çiz; tahta dolu ama düzenli görünsün.
-- Hareket, akış, değişim veya döngü varsa DİYAGRAM ANİMASYONU kurallarıyla canlandır (bulut kaysın, dünya dönsün, kan aksın, ordu ilerlesin).
-ÖRNEK (sözel ders, edebiyat; tek bir d1 bloğu, vuruşlara bölünerek parça parça eklenir):
-v1 dizeler → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><rect x='60' y='60' width='500' height='270' rx='14' fill='#fff9db' stroke='#1e1e1e' stroke-width='2'/><text x='90' y='120' font-size='22' fill='#1e1e1e'>Ben yürürüm yane yane</text><text x='90' y='180' font-size='22' fill='#1e1e1e'>Aşk boyadı beni kane</text><text x='90' y='240' font-size='22' fill='#1e1e1e'>Ne âkilem ne divane</text><text x='90' y='300' font-size='22' fill='#1e1e1e'>Gel gör beni aşk neyledi</text></svg>"}
-v2 kafiye harfleri → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><circle cx='640' cy='112' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='120' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='172' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='180' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='232' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='240' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='292' r='22' fill='#e7f5ff' stroke='#1971c2' stroke-width='2'/><text x='640' y='300' text-anchor='middle' font-size='22' fill='#1971c2'>b</text></svg>"}
-v3 hece sayısı → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><text x='540' y='120' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='540' y='180' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='540' y='240' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='540' y='300' text-anchor='end' font-size='18' fill='#2f9e44'>8</text><text x='400' y='390' text-anchor='middle' font-size='22' fill='#2f9e44'>Şema: aaab · Ölçü: 8'li hece</text></svg>"}`;
+const YARATICI_TAHTA = `YARATICI TAHTA ANLATIMI (HER DERSTE ZORUNLU):
+- Her ders görselleştirilir. Sözel derslerde de (edebiyat, tarih, felsefe, din, dil bilgisi, yabancı dil) asla yalnızca yazıyla anlatma; her ana fikrin tahtada bir görsel karşılığı olsun.
+- Tahtayı boş bırakma: vuruşların en az üçte ikisinde tahtaya bir şey eklensin; her sahnede en az bir ana görsel blok (turkiye_haritasi, matematik_grafigi, geometri, akis_semasi, zaman_cizelgesi, tablo, hazir_sahne veya son çare geometri_ve_diyagram) olsun. Sahneyi yalnızca formul_ve_not ile geçirme.
+- Adım adım kur: aynı "gorsel" kimliğine sonraki vuruşlarda yeni nokta, yükseklik, düğüm, olay, satır veya SVG katmanı ekleyerek resmi anlatımla birlikte büyüt.
+- Soyutu yapısal şablonlarla somutlaştır: karşıtlık için terazi, hiyerarşi için piramit, ortak/farklı özellikler için venn, süreç/neden-sonuç için akis_semasi, dönemler için zaman_cizelgesi, kıyas için tablo, somut simgeler için ikon_izgarasi (merdiven, kopru, kalkan, disli, ampul, kitap...) kullan.
+- Yalnızca yapısal bloklara sığmayan özel anlatımlarda (ör. şiir kafiye/ölçü işaretleme, cümle ögeleri, konuşma balonlu diyalog) son çare geometri_ve_diyagram seç:
+  v1 dizeler → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><rect x='60' y='60' width='500' height='270' rx='14' fill='#fff9db' stroke='#1e1e1e' stroke-width='2'/><text x='90' y='120' font-size='22' fill='#1e1e1e'>Ben yürürüm yane yane</text><text x='90' y='180' font-size='22' fill='#1e1e1e'>Aşk boyadı beni kane</text><text x='90' y='240' font-size='22' fill='#1e1e1e'>Ne âkilem ne divane</text><text x='90' y='300' font-size='22' fill='#1e1e1e'>Gel gör beni aşk neyledi</text></svg>"}
+  v2 kafiye → {"tip":"geometri_ve_diyagram","gorsel":"d1","svg":"<svg viewBox='0 0 800 460'><circle cx='640' cy='112' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='120' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='172' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='180' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='232' r='22' fill='#fff0f6' stroke='#e03131' stroke-width='2'/><text x='640' y='240' text-anchor='middle' font-size='22' fill='#e03131'>a</text><circle cx='640' cy='292' r='22' fill='#e7f5ff' stroke='#1971c2' stroke-width='2'/><text x='640' y='300' text-anchor='middle' font-size='22' fill='#1971c2'>b</text></svg>"}`;
 
 const OGRETMEN_KIMLIGI = `KİMLİĞİN: Konusuna hâkim, sabırlı, sıcak ve güven veren deneyimli bir Türk öğretmensin. Karşında tek bir öğrenci var; ona doğrudan "sen" diye hitap ederek gerçek bir sınıf öğretmeni gibi ders anlatırsın. Bir yapay zekâ, asistan veya sunucu gibi değil, öğretmen gibi konuşursun.`;
 
@@ -103,14 +141,12 @@ const VURUS_KURALLARI = `Her sahne kısa MİKRO-VURUŞLARA ("vuruslar") bölün�
 - "soz" sesli okunur: içine LaTeX, ters bölü, $, ^ veya _ yazma. Formülü sesli okur gibi yaz ("F eşittir m çarpı a", "x kare artı bir").`;
 
 const CIZIM_STILI = `ÖĞRETMEN ÇİZİM STİLİ (gerçek bir öğretmenin tahtayı kullanma biçimi):
-- Sahne başlığını uygulama OTOMATİK yazar: sadece başlığın tanıtıldığı vuruşta başlık tahtanın ortasına büyük yazılır, ilk çizim gelince başlık yukarı kayar. Bu yüzden başlığı formul_ve_not veya diyagram içinde ASLA tekrar yazma. Sahnenin ilk vuruşu konuyu tanıtıyorsa "aksiyonlar": [] bırak.
-- Tahtayı yukarıdan aşağı, soldan sağa düzenli doldur; içerik birbirinden kopuk, rastgele konumlara dağılmasın.
-- Boyutlar tutarlı olsun: aynı türden yazılar (etiketler, notlar) hep aynı font-size'ı kullansın; bir şey dev, yanındaki minik olmasın.
-- Renk kodlaması tutarlı olsun: yeni terim/tanım "baslik", formül "formul", dikkat/tuzak/sık hata "vurgu", sonuç/cevap "sonuc", ara adımlar "normal". Aynı kavram ders boyunca hep aynı renkte kalsın.
-- Bir vuruşta tek fikir: bir formül satırı, bir okun eklenmesi, bir değerin yerine konması. Çözümü satır satır, her satırda tek işlem yaparak yaz; ara adımı atlama.
-- Kavramlar arasındaki ilişkiyi diyagramla göster (akış, neden-sonuç, karşılaştırma tablosu, zaman çizelgesi); karar noktalarını ayrı kutu/elmas olarak çiz.
+- Sahne başlığını uygulama OTOMATİK yazar: sadece başlığın tanıtıldığı vuruşta başlık tahtanın ortasına büyük yazılır, ilk çizim gelince başlık yukarı kayar. Bu yüzden başlığı formul_ve_not veya başka blokların içinde ASLA tekrar yazma. Sahnenin ilk vuruşu konuyu tanıtıyorsa "aksiyonlar": [] bırak.
+- Yerleşim düzenini bloklar otomatik sağlar; farklı bloklar arasında renk kodlamasını tutarlı tut: yeni terim/tanım "baslik", formül "formul", dikkat/tuzak/sık hata "vurgu", sonuç/cevap "sonuc", ara adımlar "normal". Aynı kavram ders boyunca hep aynı renkte kalsın.
+- Bir vuruşta tek fikir: bir formül satırı, bir düğüm/bağlantı, bir olay kartı, bir kuvvet oku veya bir değerin yerine konması. Çözümü satır satır, her satırda tek işlem yaparak yaz; ara adımı atlama.
+- İlişkileri akis_semasi, kıyasları tablo, evre/tarihleri zaman_cizelgesi, geometrik şekilleri geometri, fen düzenekleri ve metaforları hazir_sahne ile kur.
 - Önemli yere dönerken "vurgula" aksiyonunu kullan; sonucu "sonuc" renginde ve altı çizili yaz.
-- Tahtanın sınırları vardır: bir sahneye sığmayacak kadar çok şey yazma. Bir formul_ve_not bloğunda en fazla 6 satır olsun, notlar kısa (en fazla ~12 kelime) tutulsun; fazlası için yeni sahneye geç.`;
+- Tahtanın sınırları vardır: bir formul_ve_not bloğunda en fazla 6 satır olsun, notlar kısa (en fazla ~12 kelime) tutulsun; fazlası için yeni sahneye geç.`;
 
 const PEDAGOJI = `ANLATIM AKIŞI (Astra AI tarzı yapılandırılmış ders):
 1) Kanca: günlük hayattan merak uyandıran bir soru/örnekle başla ve dersin hedefini tek cümlede söyle.
@@ -182,25 +218,134 @@ YALNIZCA şu JSON'u döndür:
 {"sorular":[{"soru":"...","secenekler":["A","B","C","D"],"dogruIndex":0,"aciklama":"Doğru cevabın kısa gerekçesi"}]}`;
 
 const RENK_ANAHTARLARI = new Set(["baslik", "başlık", "formul", "formül", "vurgu", "sonuc", "sonuç", "normal"]);
+const RENK_ESLESME: Record<string, string> = {
+  başlık: "baslik",
+  formül: "formul",
+  sonuç: "sonuc",
+};
 
 const BOLGELER = new Set<Bolge>(["marmara", "ege", "akdeniz", "ic-anadolu", "karadeniz", "dogu-anadolu", "guneydogu-anadolu"]);
 
+const NOKTA_KONUMLARI = new Set<NonNullable<GeometriNokta["konum"]>>(["ust", "alt", "sol", "sag", "otomatik"]);
+const DOGRU_TURLERI = new Set<NonNullable<GeometriDogru["tur"]>>(["dogru_parcasi", "dogru", "isin"]);
+const AKIS_SEKILLERI = new Set<AkisDugumSekli>(["kutu", "yuvarlak", "oval", "elmas", "daire", "paralelkenar"]);
+const ZAMAN_YONLERI = new Set<ZamanCizelgesiYon>(["yatay", "dikey"]);
+const EGIK_YONLERI = new Set<EgikDuzlemKuvvet["yon"]>(["yukari", "asagi", "normal", "yatay", "agirlik", "surtunme"]);
+const HAREKET_YONLERI = new Set<NonNullable<EgikDuzlemSablonu["hareket"]>>(["yukari", "asagi", "durgun"]);
+const DEVRE_DUZENLERI = new Set<NonNullable<ElektrikDevresiSablonu["duzen"]>>(["seri", "paralel", "karisik"]);
+const DEVRE_ELEMANLARI = new Set<ElektrikDevresiEleman["tur"]>([
+  "direnc",
+  "ampul",
+  "anahtar",
+  "ampermetre",
+  "voltmetre",
+  "kondansator",
+  "pil",
+]);
+const OPTIK_TURLERI = new Set<OptikDuzenekSablonu["tur"]>([
+  "cukur_ayna",
+  "tumsek_ayna",
+  "duz_ayna",
+  "ince_mercek",
+  "kalin_mercek",
+]);
+const OPTIK_KONUMLAR = new Set<Exclude<NonNullable<OptikDuzenekSablonu["cisim"]>["konum"], number>>([
+  "merkez_disi",
+  "merkezde",
+  "odak_merkez_arasi",
+  "odakta",
+  "odak_ayna_arasi",
+]);
+const KUVVET_SEKILLERI = new Set<NonNullable<NonNullable<KuvvetDengesiSablonu["cisim"]>["sekil"]>>(["kutu", "daire", "nokta"]);
+const KUVVET_ZEMINLERI = new Set<NonNullable<KuvvetDengesiSablonu["zemin"]>>(["yatay", "yok", "ip"]);
+const KAPLAR = new Set<NonNullable<TepkimeKabiSablonu["kap"]>>(["beher", "erlen", "tup", "iki_kap"]);
+const FAZLAR = new Set<NonNullable<TepkimeKabiTanecik["faz"]>>(["kati", "sivi", "gaz"]);
+const HUCRE_TURLERI = new Set<HucreKesitiSablonu["tur"]>(["hayvan", "bitki", "prokaryot"]);
+const TERAZI_DENGELERI = new Set<NonNullable<TeraziSablonu["denge"]>>(["esit", "sol_agir", "sag_agir"]);
+const PIRAMIT_YONLERI = new Set<NonNullable<PiramitSablonu["yon"]>>(["ustten_alta", "alttan_uste"]);
+
+const asciiKucuk = (s: string) =>
+  s
+    .trim()
+    .toLocaleLowerCase("tr")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
+
 const sayi = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : undefined);
+const sinirlaSayi = (v: unknown, min: number, max: number) => {
+  const n = sayi(v);
+  return n !== undefined ? Math.max(min, Math.min(max, n)) : undefined;
+};
+const tamSayi = (v: unknown, min: number, max: number) => {
+  const n = sayi(v);
+  return n !== undefined ? Math.max(min, Math.min(max, Math.round(n))) : undefined;
+};
+const birUc = (v: unknown): 1 | 2 | 3 | undefined => {
+  const n = sayi(v);
+  if (n === undefined) return undefined;
+  const r = Math.round(n);
+  return r === 1 || r === 2 || r === 3 ? r : undefined;
+};
+const bool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
 const yazi = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
 const duz = (v: unknown, max: number) => {
   const y = yazi(v, max);
   return y ? duzYaziyaCevir(y) || undefined : undefined;
 };
+const metin = (v: unknown, max: number) => {
+  if (typeof v === "number" && Number.isFinite(v)) return String(v).slice(0, max);
+  return duz(v, max);
+};
+const secenek = <T extends string>(v: unknown, izinli: ReadonlySet<T>): T | undefined => {
+  const r = yazi(v, 50);
+  if (!r) return undefined;
+  if (izinli.has(r as T)) return r as T;
+  const n = asciiKucuk(r);
+  return izinli.has(n as T) ? (n as T) : undefined;
+};
 const renk = (v: unknown) => {
-  const r = yazi(v, 20);
-  return r && /^(#[0-9a-f]{3,8}|[a-z]+)$/i.test(r) ? r : undefined;
+  const r = yazi(v, 30);
+  if (!r) return undefined;
+  const n = RENK_ESLESME[r.toLocaleLowerCase("tr")] ?? r;
+  return /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\))$/i.test(n) ? n : undefined;
+};
+const ikonAdi = (v: unknown) => {
+  const ham = yazi(v, 40);
+  if (!ham) return undefined;
+  const temiz = asciiKucuk(ham).replace(/[^a-z0-9_-]/g, "");
+  return temiz || undefined;
 };
 const plaka = (v: unknown) => {
   const n = sayi(v);
   return n !== undefined && Number.isInteger(n) && n >= 1 && n <= 81 ? n : undefined;
 };
+const nesne = (v: unknown): Record<string, unknown> | undefined =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
 const dizi = <T,>(v: unknown, max: number, f: (x: Record<string, unknown>) => T | undefined): T[] =>
-  Array.isArray(v) ? v.flatMap((x) => (x && typeof x === "object" ? [f(x)] : [])).filter((x): x is T => x !== undefined).slice(0, max) : [];
+  Array.isArray(v)
+    ? v
+        .slice(0, max * 3)
+        .flatMap((x) => {
+          const obj = nesne(x);
+          return obj ? [f(obj)] : [];
+        })
+        .filter((x): x is T => x !== undefined)
+        .slice(0, max)
+    : [];
+const optDizi = <T,>(arr: T[]): T[] | undefined => (arr.length ? arr : undefined);
+const yaziDizisi = (v: unknown, maxOge: number, maxUzunluk: number) => {
+  if (!Array.isArray(v)) return undefined;
+  const temiz = v
+    .slice(0, maxOge * 2)
+    .map((x) => metin(x, maxUzunluk))
+    .filter((x): x is string => Boolean(x))
+    .slice(0, maxOge);
+  return temiz.length ? temiz : undefined;
+};
 const aralik = (v: unknown): [number, number] | undefined => {
   if (!Array.isArray(v)) return undefined;
   const a = sayi(v[0]);
@@ -208,14 +353,33 @@ const aralik = (v: unknown): [number, number] | undefined => {
   return a !== undefined && b !== undefined && b > a && b - a < 1e6 ? [a, b] : undefined;
 };
 
+const SVG_IC_ID = /^#[a-zA-Z_][\w:-]*$/;
+const SVG_MARKER_URL = /^url\(\s*(#[a-zA-Z_][\w:-]*)\s*\)$/;
+
 function svgTemizle(ham: unknown) {
   if (typeof ham !== "string" || !/<svg[\s>]/i.test(ham)) return undefined;
-  return ham
-    .slice(0, 30_000)
-    .replace(/<(script|style|foreignObject|image|iframe)[\s\S]*?<\/\1>/gi, "")
-    .replace(/<(script|style|foreignObject|image|iframe)[^>]*\/?>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\s(xlink:)?href\s*=\s*("[^"]*"|'[^']*')/gi, "");
+  let s = ham.slice(0, 30_000);
+  for (let tur = 0; tur < 5; tur++) {
+    const onceki = s;
+    s = s
+      .replace(/<\s*(script|style|foreignObject|image|iframe|object|embed)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+      .replace(/<\s*\/?\s*(script|style|foreignObject|image|iframe|object|embed)\b[^>]*>/gi, "");
+    if (s === onceki) break;
+  }
+  return s
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(?:xlink:)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, (tam, d, t, y) => {
+      const val = String(d ?? t ?? y ?? "").trim();
+      return SVG_IC_ID.test(val) ? tam : "";
+    })
+    .replace(/\s+marker-(?:end|start|mid)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, (tam, d, t, y) => {
+      const val = String(d ?? t ?? y ?? "").trim();
+      return SVG_MARKER_URL.test(val) ? tam : "";
+    })
+    .replace(/\s+style\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, (tam, d, t, y) => {
+      const val = String(d ?? t ?? y ?? "");
+      return /url\s*\(|expression\s*\(|javascript:/i.test(val) ? "" : tam;
+    });
 }
 
 function yaziyaCevir(latex: string) {
@@ -230,6 +394,546 @@ function yaziyaCevir(latex: string) {
     .replace(/\\[,;!]|\\quad/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function geometriTemizle(h: Record<string, unknown>, gorsel: string): GeometriAksiyonu | undefined {
+  const noktaAdi = (v: unknown) => duz(v, 16);
+  const noktalar = dizi<GeometriNokta>(h.noktalar, 24, (x) => {
+    const ad = noktaAdi(x.ad);
+    const nx = sinirlaSayi(x.x, -10_000, 10_000);
+    const ny = sinirlaSayi(x.y, -10_000, 10_000);
+    return ad && nx !== undefined && ny !== undefined
+      ? {
+          ad,
+          x: nx,
+          y: ny,
+          etiket: metin(x.etiket, 30),
+          renk: renk(x.renk),
+          gizli: bool(x.gizli),
+          konum: secenek(x.konum, NOKTA_KONUMLARI),
+        }
+      : undefined;
+  });
+  const dogrular = dizi<GeometriDogru>(h.dogrular, 32, (x) => {
+    const a = noktaAdi(x.a);
+    const b = noktaAdi(x.b);
+    return a && b && a !== b
+      ? {
+          a,
+          b,
+          etiket: metin(x.etiket, 30),
+          tur: secenek(x.tur, DOGRU_TURLERI),
+          kesikli: bool(x.kesikli),
+          renk: renk(x.renk),
+          kalinlik: sinirlaSayi(x.kalinlik, 0.5, 8),
+          esitlik: birUc(x.esitlik),
+        }
+      : undefined;
+  });
+  const cemberler = dizi<GeometriCember>(h.cemberler, 10, (x) => {
+    const merkez = noktaAdi(x.merkez);
+    const r = sinirlaSayi(x.r, 0.01, 10_000);
+    return merkez && r !== undefined
+      ? {
+          merkez,
+          r,
+          renk: renk(x.renk),
+          dolgu: renk(x.dolgu),
+          kesikli: bool(x.kesikli),
+          etiket: metin(x.etiket, 30),
+          baslangicAci: sinirlaSayi(x.baslangicAci, -720, 720),
+          bitisAci: sinirlaSayi(x.bitisAci, -720, 720),
+        }
+      : undefined;
+  });
+  const acilar = dizi<GeometriAci>(h.acilar, 16, (x) => {
+    const a = noktaAdi(x.a);
+    const kose = noktaAdi(x.kose);
+    const c = noktaAdi(x.c);
+    return a && kose && c && a !== kose && c !== kose
+      ? {
+          a,
+          kose,
+          c,
+          dik: bool(x.dik),
+          etiket: metin(x.etiket, 24),
+          renk: renk(x.renk),
+          yaySayisi: birUc(x.yaySayisi),
+          yaricap: sinirlaSayi(x.yaricap, 0.1, 500),
+        }
+      : undefined;
+  });
+  const yukseklikler = dizi<GeometriYukseklik>(h.yukseklikler, 8, (x) => {
+    const tepe = noktaAdi(x.tepe);
+    const tabanA = noktaAdi(x.tabanA);
+    const tabanB = noktaAdi(x.tabanB);
+    return tepe && tabanA && tabanB
+      ? {
+          tepe,
+          tabanA,
+          tabanB,
+          ayak: noktaAdi(x.ayak),
+          etiket: metin(x.etiket, 30),
+          dikIsareti: bool(x.dikIsareti),
+          kesikli: bool(x.kesikli),
+          renk: renk(x.renk),
+        }
+      : undefined;
+  });
+  const etiketler = dizi<GeometriEtiket>(h.etiketler, 20, (x) => {
+    const m = metin(x.metin, 60);
+    const nx = sinirlaSayi(x.x, -10_000, 10_000);
+    const ny = sinirlaSayi(x.y, -10_000, 10_000);
+    return m && nx !== undefined && ny !== undefined
+      ? { metin: m, x: nx, y: ny, renk: renk(x.renk), boyut: sinirlaSayi(x.boyut, 10, 40) }
+      : undefined;
+  });
+  const cokgenler = dizi<GeometriCokgen>(h.cokgenler, 8, (x) => {
+    const liste = Array.isArray(x.noktalar)
+      ? x.noktalar
+          .slice(0, 20)
+          .map(noktaAdi)
+          .filter((n): n is string => Boolean(n))
+          .slice(0, 16)
+      : [];
+    return liste.length >= 3 ? { noktalar: liste, dolgu: renk(x.dolgu), renk: renk(x.renk), etiket: metin(x.etiket, 40) } : undefined;
+  });
+  const koordinatGoster = bool(h.koordinatGoster);
+  const ogeSayisi =
+    noktalar.length + dogrular.length + cemberler.length + acilar.length + yukseklikler.length + etiketler.length + cokgenler.length;
+  if (ogeSayisi === 0 && koordinatGoster !== true) return undefined;
+  return {
+    tip: "geometri",
+    gorsel,
+    noktalar: optDizi(noktalar),
+    dogrular: optDizi(dogrular),
+    cemberler: optDizi(cemberler),
+    acilar: optDizi(acilar),
+    yukseklikler: optDizi(yukseklikler),
+    etiketler: optDizi(etiketler),
+    cokgenler: optDizi(cokgenler),
+    koordinatGoster,
+  };
+}
+
+function akisSemasiTemizle(h: Record<string, unknown>, gorsel: string): AkisSemasiAksiyonu | undefined {
+  const hamYon = asciiKucuk(yazi(h.yon, 20) ?? "");
+  const yon: AkisYon | undefined =
+    hamYon === "tb" || hamYon === "dikey" ? "TB" : hamYon === "lr" || hamYon === "yatay" ? "LR" : undefined;
+  const dugumler = dizi<AkisDugum>(h.dugumler, 24, (x) => {
+    const id = yazi(x.id, 32);
+    const etiket = metin(x.etiket, 80);
+    return id && etiket
+      ? {
+          id,
+          etiket,
+          altEtiket: metin(x.altEtiket, 100),
+          sekil: secenek(x.sekil, AKIS_SEKILLERI),
+          ikon: ikonAdi(x.ikon),
+          renk: renk(x.renk),
+          dolgu: renk(x.dolgu),
+          grup: yazi(x.grup, 32),
+        }
+      : undefined;
+  });
+  const baglantilar = dizi<AkisBaglantisi>(h.baglantilar, 40, (x) => {
+    const kaynak = yazi(x.kaynak, 32);
+    const hedef = yazi(x.hedef, 32);
+    return kaynak && hedef
+      ? {
+          kaynak,
+          hedef,
+          etiket: metin(x.etiket, 50),
+          kesikli: bool(x.kesikli),
+          ciftYon: bool(x.ciftYon),
+          akis: bool(x.akis),
+          renk: renk(x.renk),
+        }
+      : undefined;
+  });
+  const gruplar = dizi<AkisGrubu>(h.gruplar, 8, (x) => {
+    const id = yazi(x.id, 32);
+    const baslik = metin(x.baslik, 60);
+    if (!id || !baslik) return undefined;
+    const gDugumler = Array.isArray(x.dugumler)
+      ? x.dugumler
+          .slice(0, 30)
+          .map((d) => yazi(d, 32))
+          .filter((d): d is string => Boolean(d))
+          .slice(0, 24)
+      : [];
+    return {
+      id,
+      baslik,
+      renk: renk(x.renk),
+      dolgu: renk(x.dolgu),
+      dugumler: optDizi(gDugumler),
+    };
+  });
+  if (dugumler.length + baglantilar.length + gruplar.length === 0) return undefined;
+  return {
+    tip: "akis_semasi",
+    gorsel,
+    yon,
+    dugumler: optDizi(dugumler),
+    baglantilar: optDizi(baglantilar),
+    gruplar: optDizi(gruplar),
+  };
+}
+
+function zamanCizelgesiTemizle(h: Record<string, unknown>, gorsel: string): ZamanCizelgesiAksiyonu | undefined {
+  const olaylar = dizi<ZamanOlayi>(h.olaylar, 16, (x) => {
+    const tarih = metin(x.tarih, 40);
+    const baslik = metin(x.baslik, 80);
+    return tarih && baslik
+      ? {
+          tarih,
+          baslik,
+          aciklama: metin(x.aciklama, 160),
+          ikon: ikonAdi(x.ikon),
+          renk: renk(x.renk),
+          vurgulu: bool(x.vurgulu),
+          aralik: metin(x.aralik, 40),
+        }
+      : undefined;
+  });
+  if (olaylar.length === 0) return undefined;
+  return {
+    tip: "zaman_cizelgesi",
+    gorsel,
+    baslik: metin(h.baslik, 80),
+    yon: secenek(h.yon, ZAMAN_YONLERI),
+    olaylar,
+  };
+}
+
+function tabloTemizle(h: Record<string, unknown>, gorsel: string): TabloAksiyonu | undefined {
+  const basliklar = yaziDizisi(h.basliklar, 8, 60);
+  const satirlarRaw = Array.isArray(h.satirlar)
+    ? h.satirlar
+        .slice(0, 16)
+        .filter((r): r is unknown[] => Array.isArray(r))
+        .map((r) => r.slice(0, 8).map((hucre) => metin(hucre, 140) ?? ""))
+        .filter((r) => r.length > 0)
+    : [];
+  const satirlar = optDizi(satirlarRaw);
+  const vurgular = dizi<TabloVurgusu>(h.vurgular, 16, (x) => {
+    const satir = x.satir !== undefined ? tamSayi(x.satir, 0, 15) : undefined;
+    const sutun = x.sutun !== undefined ? tamSayi(x.sutun, 0, 7) : undefined;
+    const not = metin(x.not, 80);
+    const r = renk(x.renk);
+    return satir !== undefined || sutun !== undefined || not !== undefined || r !== undefined
+      ? { satir, sutun, renk: r, not }
+      : undefined;
+  });
+  const sutunRenkleriRaw = Array.isArray(h.sutunRenkleri) ? h.sutunRenkleri.slice(0, 8).map((c) => renk(c) ?? "") : [];
+  const sutunRenkleri = sutunRenkleriRaw.some(Boolean) ? sutunRenkleriRaw : undefined;
+  if (!basliklar?.length && !satirlar?.length && vurgular.length === 0) return undefined;
+  return {
+    tip: "tablo",
+    gorsel,
+    baslik: metin(h.baslik, 80),
+    basliklar,
+    satirlar,
+    vurgular: optDizi(vurgular),
+    sutunRenkleri,
+  };
+}
+
+const tanecikListesi = (v: unknown) =>
+  dizi<TepkimeKabiTanecik>(v, 12, (x) => {
+    const etiket = metin(x.etiket, 24);
+    return etiket
+      ? {
+          etiket,
+          sayi: x.sayi !== undefined ? tamSayi(x.sayi, 1, 30) : undefined,
+          renk: renk(x.renk),
+          faz: secenek(x.faz, FAZLAR),
+        }
+      : undefined;
+  });
+
+const kefeTemizle = (v: unknown): TeraziKefe | undefined => {
+  const k = nesne(v);
+  if (!k) return undefined;
+  const maddeler = yaziDizisi(k.maddeler, 6, 40);
+  const agirlik = sinirlaSayi(k.agirlik, 0, 10_000);
+  const baslik = metin(k.baslik, 50) ?? (maddeler?.length || agirlik !== undefined ? "" : undefined);
+  if (baslik === undefined) return undefined;
+  return { baslik, maddeler, agirlik, renk: renk(k.renk) };
+};
+
+function hazirSahneTemizle(h: Record<string, unknown>, gorsel: string): HazirSahneAksiyonu | undefined {
+  const sablon = asciiKucuk(yazi(h.sablon, 40) ?? "");
+  switch (sablon) {
+    case "egik_duzlem": {
+      const kuvvetler = dizi<EgikDuzlemKuvvet>(h.kuvvetler, 8, (x) => {
+        const yon = secenek(x.yon, EGIK_YONLERI);
+        const etiket = metin(x.etiket, 30);
+        return yon && etiket ? { yon, etiket, renk: renk(x.renk) } : undefined;
+      });
+      const surtunme = typeof h.surtunme === "boolean" ? h.surtunme : metin(h.surtunme, 30);
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "egik_duzlem",
+        aci: sinirlaSayi(h.aci, 5, 80),
+        aciEtiketi: metin(h.aciEtiketi, 24),
+        cisimEtiketi: metin(h.cisimEtiketi, 30),
+        kuvvetler: optDizi(kuvvetler),
+        surtunme,
+        hareket: secenek(h.hareket, HAREKET_YONLERI),
+        yukseklikEtiketi: metin(h.yukseklikEtiketi, 24),
+        uzunlukEtiketi: metin(h.uzunlukEtiketi, 24),
+      };
+    }
+    case "elektrik_devresi": {
+      const elemanlar = dizi<ElektrikDevresiEleman>(h.elemanlar, 12, (x) => {
+        const tur = secenek(x.tur, DEVRE_ELEMANLARI);
+        return tur
+          ? {
+              tur,
+              etiket: metin(x.etiket, 24),
+              deger: metin(x.deger, 24),
+              kapali: bool(x.kapali),
+              kol: x.kol !== undefined ? tamSayi(x.kol, 0, 6) : undefined,
+              renk: renk(x.renk),
+            }
+          : undefined;
+      });
+      const k = nesne(h.kaynak);
+      const kaynak =
+        k && (metin(k.gerilim, 24) || metin(k.etiket, 24))
+          ? { gerilim: metin(k.gerilim, 24), etiket: metin(k.etiket, 24) }
+          : undefined;
+      const duzen = secenek(h.duzen, DEVRE_DUZENLERI);
+      const akimYonu =
+        typeof h.akimYonu === "boolean"
+          ? h.akimYonu
+          : secenek(h.akimYonu, new Set(["saat", "ters"] as const));
+      const akimEtiketi = metin(h.akimEtiketi, 24);
+      if (elemanlar.length === 0 && !kaynak && akimYonu === undefined && akimEtiketi === undefined && duzen === undefined) {
+        return undefined;
+      }
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "elektrik_devresi",
+        duzen,
+        kaynak,
+        elemanlar,
+        akimYonu,
+        akimEtiketi,
+      };
+    }
+    case "optik_duzenek": {
+      const tur = secenek(h.tur, OPTIK_TURLERI);
+      if (!tur) return undefined;
+      const c = nesne(h.cisim);
+      let cisim: OptikDuzenekSablonu["cisim"];
+      if (c) {
+        const konum = secenek(c.konum, OPTIK_KONUMLAR) ?? sinirlaSayi(c.konum, -500, 500);
+        const boy = sinirlaSayi(c.boy, 0.2, 500);
+        const etiket = metin(c.etiket, 24);
+        if (konum !== undefined || boy !== undefined || etiket !== undefined) {
+          cisim = { konum: konum ?? "merkez_disi", boy, etiket };
+        }
+      }
+      const g = nesne(h.goruntu);
+      const goruntu =
+        g && (bool(g.goster) !== undefined || metin(g.etiket, 24) !== undefined)
+          ? { goster: bool(g.goster), etiket: metin(g.etiket, 24) }
+          : undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "optik_duzenek",
+        tur,
+        odakEtiketi: metin(h.odakEtiketi, 20),
+        merkezEtiketi: metin(h.merkezEtiketi, 20),
+        cisim,
+        goruntu,
+        isinlar: bool(h.isinlar),
+      };
+    }
+    case "kuvvet_dengesi": {
+      const kuvvetler = dizi<KuvvetDengesiKuvvet>(h.kuvvetler, 12, (x) => {
+        const etiket = metin(x.etiket, 30);
+        const aci = sinirlaSayi(x.aci, -360, 360);
+        return etiket && aci !== undefined
+          ? { etiket, aci, buyukluk: sinirlaSayi(x.buyukluk, 0.1, 1000), renk: renk(x.renk) }
+          : undefined;
+      });
+      const c = nesne(h.cisim);
+      const cisim =
+        c && (secenek(c.sekil, KUVVET_SEKILLERI) || metin(c.etiket, 30) || renk(c.dolgu))
+          ? { sekil: secenek(c.sekil, KUVVET_SEKILLERI), etiket: metin(c.etiket, 30), dolgu: renk(c.dolgu) }
+          : undefined;
+      const zemin = secenek(h.zemin, KUVVET_ZEMINLERI);
+      const b = nesne(h.bileske);
+      const bileske =
+        b && (metin(b.etiket, 30) !== undefined || bool(b.goster) !== undefined)
+          ? { etiket: metin(b.etiket, 30), goster: bool(b.goster) }
+          : undefined;
+      if (kuvvetler.length === 0 && !cisim && !bileske && !zemin) return undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "kuvvet_dengesi",
+        cisim,
+        zemin,
+        kuvvetler,
+        bileske,
+      };
+    }
+    case "atom_modeli": {
+      const sembol = duz(h.sembol, 12);
+      if (!sembol) return undefined;
+      const katmanlar = Array.isArray(h.katmanlar)
+        ? h.katmanlar
+            .slice(0, 7)
+            .map((k) => tamSayi(k, 1, 32))
+            .filter((k): k is number => k !== undefined)
+        : [];
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "atom_modeli",
+        sembol,
+        ad: metin(h.ad, 40),
+        proton: h.proton !== undefined ? tamSayi(h.proton, 0, 120) : undefined,
+        notron: h.notron !== undefined ? tamSayi(h.notron, 0, 200) : undefined,
+        katmanlar,
+        yuk: duz(h.yuk, 12),
+        animasyon: bool(h.animasyon),
+      };
+    }
+    case "tepkime_kabi": {
+      const tanecikler = tanecikListesi(h.tanecikler);
+      const girenler = tanecikListesi(h.girenler);
+      const urunler = tanecikListesi(h.urunler);
+      if (tanecikler.length + girenler.length + urunler.length === 0) return undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "tepkime_kabi",
+        kap: secenek(h.kap, KAPLAR),
+        baslik: metin(h.baslik, 60),
+        tanecikler: optDizi(tanecikler),
+        girenler: optDizi(girenler),
+        urunler: optDizi(urunler),
+        isi: bool(h.isi),
+        piston: bool(h.piston),
+        etiket: metin(h.etiket, 60),
+      };
+    }
+    case "hucre_kesiti": {
+      const tur = secenek(h.tur, HUCRE_TURLERI);
+      if (!tur) return undefined;
+      const organeller = dizi<HucreOrganeli>(h.organeller, 16, (x) => {
+        const ad = metin(x.ad, 40);
+        return ad
+          ? {
+              id: yazi(x.id, 32),
+              ad,
+              aciklama: metin(x.aciklama, 120),
+              vurgulu: bool(x.vurgulu),
+              renk: renk(x.renk),
+            }
+          : undefined;
+      });
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "hucre_kesiti",
+        tur,
+        baslik: metin(h.baslik, 60),
+        organeller,
+      };
+    }
+    case "terazi": {
+      const sol = kefeTemizle(h.sol);
+      const sag = kefeTemizle(h.sag);
+      if (!sol || !sag) return undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "terazi",
+        baslik: metin(h.baslik, 60),
+        sol,
+        sag,
+        denge: secenek(h.denge, TERAZI_DENGELERI),
+        merkezEtiket: metin(h.merkezEtiket, 30),
+      };
+    }
+    case "piramit": {
+      const katmanlar = dizi<PiramitKatmani>(h.katmanlar, 8, (x) => {
+        const baslik = metin(x.baslik, 50);
+        return baslik
+          ? {
+              baslik,
+              altMetin: metin(x.altMetin, 80),
+              renk: renk(x.renk),
+              vurgulu: bool(x.vurgulu),
+            }
+          : undefined;
+      });
+      if (katmanlar.length === 0) return undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "piramit",
+        baslik: metin(h.baslik, 60),
+        yon: secenek(h.yon, PIRAMIT_YONLERI),
+        katmanlar,
+        yanEtiket: metin(h.yanEtiket, 40),
+      };
+    }
+    case "venn": {
+      const kumeler = dizi<VennKumesi>(h.kumeler, 4, (x) => {
+        const ad = metin(x.ad, 40);
+        return ad ? { ad, elemanlar: yaziDizisi(x.elemanlar, 12, 30), renk: renk(x.renk) } : undefined;
+      });
+      const kesisim = yaziDizisi(h.kesisim, 10, 30);
+      const evrensel = metin(h.evrensel, 24);
+      if (kumeler.length === 0 && !kesisim?.length && !evrensel) return undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "venn",
+        baslik: metin(h.baslik, 60),
+        kumeler,
+        kesisim,
+        evrensel,
+      };
+    }
+    case "ikon_izgarasi": {
+      const ogeler = dizi<IkonIzgarasiOge>(h.ogeler, 12, (x) => {
+        const ikon = ikonAdi(x.ikon);
+        const baslik = metin(x.baslik, 50);
+        return ikon && baslik
+          ? {
+              ikon,
+              baslik,
+              altMetin: metin(x.altMetin, 80),
+              renk: renk(x.renk),
+              vurgulu: bool(x.vurgulu),
+            }
+          : undefined;
+      });
+      if (ogeler.length === 0) return undefined;
+      return {
+        tip: "hazir_sahne",
+        gorsel,
+        sablon: "ikon_izgarasi",
+        baslik: metin(h.baslik, 60),
+        sutunSayisi: h.sutunSayisi !== undefined ? tamSayi(h.sutunSayisi, 1, 5) : undefined,
+        ogeler,
+      };
+    }
+    default:
+      return undefined;
+  }
 }
 
 function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
@@ -274,6 +978,16 @@ function aksiyonTemizle(h: Record<string, unknown>): Aksiyon | undefined {
           return nx !== undefined && ny !== undefined ? { x: nx, y: ny, etiket: duz(x.etiket, 30) ?? "" } : undefined;
         }),
       };
+    case "geometri":
+      return geometriTemizle(h, gorsel);
+    case "akis_semasi":
+      return akisSemasiTemizle(h, gorsel);
+    case "zaman_cizelgesi":
+      return zamanCizelgesiTemizle(h, gorsel);
+    case "tablo":
+      return tabloTemizle(h, gorsel);
+    case "hazir_sahne":
+      return hazirSahneTemizle(h, gorsel);
     case "geometri_ve_diyagram": {
       const svg = svgTemizle(h.svg);
       return svg ? { tip: "geometri_ve_diyagram", gorsel, svg } : undefined;
