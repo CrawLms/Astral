@@ -13,19 +13,24 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
+import { DersSecici } from "./ders-secici";
+import { dersAdiTemizle } from "@/lib/dersler";
 import { pdfMetinleriniCikar, sayfaOzeti, taranmisMi } from "@/lib/pdf-oku";
 import type { PlanYaniti, SayfaMetni, Unite } from "@/lib/types";
 
 type Props = {
   kitapAdi: string | null;
+  kitapDersi: string | null;
+  secilenDers: string;
+  onDersDegis: (ders: string) => void;
   uniteler: Unite[];
   aktifUniteId: string | null;
   anlatimYukleniyor: boolean;
   onKapat: () => void;
-  onKitapHazir: (kitapAdi: string, sayfalar: SayfaMetni[], uniteler: Unite[]) => void;
+  onKitapHazir: (kitapAdi: string, sayfalar: SayfaMetni[], uniteler: Unite[], ders: string) => void;
   onUniteSec: (id: string) => void;
   onUniteAnlat: (unite: Unite) => void;
-  onMetinAnlat: (metin: string) => void;
+  onMetinAnlat: (metin: string, ders: string) => void;
   onSifirla: () => void;
 };
 
@@ -38,6 +43,9 @@ type Durum =
 
 export function KenarCubugu({
   kitapAdi,
+  kitapDersi,
+  secilenDers,
+  onDersDegis,
   uniteler,
   aktifUniteId,
   anlatimYukleniyor,
@@ -52,6 +60,15 @@ export function KenarCubugu({
   const [durum, setDurum] = useState<Durum>({ tur: "bos" });
   const [yapistirAcik, setYapistirAcik] = useState(false);
   const [yapistirilan, setYapistirilan] = useState("");
+  const [dersEksik, setDersEksik] = useState(false);
+  const ders = dersAdiTemizle(secilenDers);
+
+  function dersHazirMi() {
+    if (ders) return true;
+    setDersEksik(true);
+    document.getElementById(document.getElementById("ozel-ders") ? "ozel-ders" : "ders-secimi")?.focus();
+    return false;
+  }
 
   const mesgul = durum.tur === "okunuyor" || durum.tur === "planlaniyor";
   const tamamlanan = uniteler.filter((u) => u.tamamlandi).length;
@@ -89,6 +106,7 @@ export function KenarCubugu({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ders,
           sayfalar: doluSayfalar.map((s) => ({ sayfaNo: s.sayfaNo, ozet: sayfaOzeti(s.metin) })),
         }),
       });
@@ -97,7 +115,7 @@ export function KenarCubugu({
         setDurum({ tur: "hata", mesaj: veri.hata });
         return;
       }
-      onKitapHazir(dosya.name.replace(/\.pdf$/i, ""), sayfalar, veri.uniteler);
+      onKitapHazir(dosya.name.replace(/\.pdf$/i, ""), sayfalar, veri.uniteler, ders);
       setDurum({ tur: "bos" });
     } catch {
       setDurum({ tur: "hata", mesaj: "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin." });
@@ -127,6 +145,19 @@ export function KenarCubugu({
       </div>
 
       <div className="flex flex-col gap-3 border-b border-border p-4">
+        <DersSecici
+          deger={secilenDers}
+          hatali={dersEksik && !ders}
+          onDegis={(d) => {
+            onDersDegis(d);
+            if (dersAdiTemizle(d)) setDersEksik(false);
+          }}
+        />
+        {dersEksik && !ders && (
+          <p role="alert" className="-mt-1 text-xs text-destructive">
+            Önce dersi seç ya da yaz; anlatım ve çizimler derse göre hazırlanır.
+          </p>
+        )}
         <input
           ref={dosyaRef}
           type="file"
@@ -141,7 +172,9 @@ export function KenarCubugu({
         <button
           type="button"
           disabled={mesgul}
-          onClick={() => dosyaRef.current?.click()}
+          onClick={() => {
+            if (dersHazirMi()) dosyaRef.current?.click();
+          }}
           className="flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
         >
           {mesgul ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <FileUp className="size-4" aria-hidden />}
@@ -196,7 +229,7 @@ export function KenarCubugu({
             className="flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              if (yapistirilan.trim()) onMetinAnlat(yapistirilan.trim());
+              if (yapistirilan.trim() && dersHazirMi()) onMetinAnlat(yapistirilan.trim(), ders);
             }}
           >
             <label htmlFor="yapistir" className="sr-only">
@@ -230,6 +263,7 @@ export function KenarCubugu({
                   {kitapAdi ?? "Ders Planı"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
+                  {kitapDersi ? `${kitapDersi} · ` : ""}
                   {tamamlanan}/{uniteler.length} ünite tamamlandı
                 </p>
               </div>

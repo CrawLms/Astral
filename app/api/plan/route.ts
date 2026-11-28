@@ -1,4 +1,5 @@
 import { hataYaniti, jsonCikar, modelSec, sohbetTamamla } from "@/lib/ai-yardimci";
+import { dersAdiTemizle } from "@/lib/dersler";
 import type { Unite } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -47,7 +48,7 @@ function chunklaraBol(sayfalar: GelenSayfa[]): GelenSayfa[][] {
   return parcalar;
 }
 
-async function parcayiPlanla(model: string, parca: GelenSayfa[], sira: number, toplam: number) {
+async function parcayiPlanla(model: string, parca: GelenSayfa[], sira: number, toplam: number, ders: string) {
   const ilk = parca[0].sayfaNo;
   const son = parca[parca.length - 1].sayfaNo;
   const icerik = parca.map((s) => `[Sayfa ${s.sayfaNo}] ${s.ozet}`).join("\n");
@@ -55,7 +56,7 @@ async function parcayiPlanla(model: string, parca: GelenSayfa[], sira: number, t
     { role: "system", content: TALIMAT },
     {
       role: "user",
-      content: `Bu, kitabın ${toplam} parçasından ${sira + 1}. parçasıdır (sayfa ${ilk}-${son}). Yalnızca bu sayfa aralığındaki üniteleri çıkar.\n\n${icerik}`,
+      content: `${ders ? `Bu kitap "${ders}" dersine ait; alt konuları bu dersin öğretim sırasına ve terimlerine göre adlandır.\n` : ""}Bu, kitabın ${toplam} parçasından ${sira + 1}. parçasıdır (sayfa ${ilk}-${son}). Yalnızca bu sayfa aralığındaki üniteleri çıkar.\n\n${icerik}`,
     },
   ]);
   const veri = jsonCikar<{ uniteler?: HamUnite[] }>(text);
@@ -97,7 +98,7 @@ function normallestir(hamlar: HamUnite[], minSayfa: number, maxSayfa: number): U
 }
 
 export async function POST(req: Request) {
-  let govde: { sayfalar?: GelenSayfa[]; model?: string };
+  let govde: { sayfalar?: GelenSayfa[]; model?: string; ders?: string };
   try {
     govde = await req.json();
   } catch {
@@ -114,6 +115,7 @@ export async function POST(req: Request) {
   }
 
   const model = modelSec(govde.model);
+  const ders = dersAdiTemizle(govde.ders);
   const parcalar = chunklaraBol(sayfalar);
 
   try {
@@ -121,7 +123,7 @@ export async function POST(req: Request) {
     for (let i = 0; i < parcalar.length; i += ES_ZAMANLI) {
       const grup = parcalar.slice(i, i + ES_ZAMANLI);
       const cikti = await Promise.all(
-        grup.map((p, j) => parcayiPlanla(model, p, i + j, parcalar.length)),
+        grup.map((p, j) => parcayiPlanla(model, p, i + j, parcalar.length, ders)),
       );
       cikti.forEach((c, j) => (sonuclar[i + j] = c));
     }

@@ -9,6 +9,8 @@ export const ANAHTARLAR = {
   aktifUnite: "aktif-unite",
   sayfalar: "sayfalar",
   kitapAdi: "kitap-adi",
+  kitapDersi: "kitap-dersi",
+  secilenDers: "secilen-ders",
   model: "model",
   ses: "ses",
   hiz: "hiz",
